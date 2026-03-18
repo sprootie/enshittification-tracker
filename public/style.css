@@ -148,6 +148,9 @@ a:hover { text-decoration: underline; }
   border: 2px solid #ff9800;
   margin-bottom: 12px;
 }
+.disallowed-badge { color: #f44336; border-color: #f44336; }
+.safe-pass { color: #4caf50; font-weight: 600; }
+.safe-fail { color: #f44336; font-weight: 600; }
 .blocked-msg {
   color: #999;
   max-width: 550px;

@@ -73,6 +73,19 @@ db.exec(`
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS safety_checks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    site_id INTEGER NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+    checked_at TEXT NOT NULL DEFAULT (datetime('now')),
+    is_safe INTEGER NOT NULL DEFAULT 1,
+    cloudflare_safe INTEGER,
+    cloudflare_detail TEXT,
+    google_safe INTEGER,
+    google_detail TEXT,
+    virustotal_safe INTEGER,
+    virustotal_detail TEXT
+  );
 `);
 
 // ── Indexes ─────────────────────────────────────────────────────
@@ -89,6 +102,7 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_queue_status_priority ON crawl_queue(status, priority DESC);
   CREATE INDEX IF NOT EXISTS idx_log_created ON crawl_log(created_at);
   CREATE INDEX IF NOT EXISTS idx_results_site_crawled ON crawl_results(site_id, crawled_at);
+  CREATE INDEX IF NOT EXISTS idx_safety_site ON safety_checks(site_id);
 `);
 
 // ── Default settings ────────────────────────────────────────────
@@ -223,6 +237,28 @@ const stmts = {
   setSetting: db.prepare(
     'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value'
   ),
+
+  // Safety checks
+  insertSafetyCheck: db.prepare(`
+    INSERT INTO safety_checks (
+      site_id, is_safe, cloudflare_safe, cloudflare_detail,
+      google_safe, google_detail, virustotal_safe, virustotal_detail
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `),
+  getLatestSafetyCheck: db.prepare(
+    'SELECT * FROM safety_checks WHERE site_id = ? ORDER BY checked_at DESC LIMIT 1'
+  ),
+  getSafetyChecksForSite: db.prepare(
+    'SELECT * FROM safety_checks WHERE site_id = ? ORDER BY checked_at DESC LIMIT ?'
+  ),
+  getDisallowedSites: db.prepare(
+    `SELECT s.*, sc.checked_at, sc.cloudflare_detail, sc.google_detail, sc.virustotal_detail
+     FROM sites s
+     JOIN safety_checks sc ON sc.site_id = s.id
+     WHERE s.status = 'disallowed'
+     AND sc.id = (SELECT MAX(id) FROM safety_checks WHERE site_id = s.id)
+     ORDER BY sc.checked_at DESC LIMIT ?`
+  ),
 };
 
 // ── Public API ──────────────────────────────────────────────────
@@ -351,5 +387,28 @@ module.exports = {
   // Direct db access for cleanup
   close() {
     db.close();
+  },
+
+  // Safety checks
+  insertSafetyCheck(siteId, result) {
+    return stmts.insertSafetyCheck.run(
+      siteId,
+      result.safe ? 1 : 0,
+      result.checks.cloudflare.safe ? 1 : 0,
+      result.checks.cloudflare.detail,
+      result.checks.google.safe ? 1 : 0,
+      result.checks.google.detail,
+      result.checks.virustotal.safe ? 1 : 0,
+      result.checks.virustotal.detail
+    );
+  },
+  getLatestSafetyCheck(siteId) {
+    return stmts.getLatestSafetyCheck.get(siteId);
+  },
+  getSafetyChecksForSite(siteId, limit = 10) {
+    return stmts.getSafetyChecksForSite.all(siteId, limit);
+  },
+  getDisallowedSites(limit = 50) {
+    return stmts.getDisallowedSites.all(limit);
   },
 };

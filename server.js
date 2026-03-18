@@ -5,6 +5,7 @@ const path = require('path');
 const db = require('./src/db');
 const auth = require('./src/auth');
 const crawler = require('./src/crawler/worker');
+const { runSafetyChecks } = require('./src/safety-check');
 
 // Templates
 const homeTemplate = require('./src/templates/home');
@@ -196,9 +197,28 @@ const server = http.createServer(async (req, res) => {
       }
 
       const site = db.upsertSite(domain, normalizedUrl);
+
+      // Check if already disallowed
+      if (site.status === 'disallowed') {
+        return redirect(res, `/site/${encodeURIComponent(domain)}`);
+      }
+
+      // Run safety checks for new or unchecked sites
+      const existingCheck = db.getLatestSafetyCheck(site.id);
+      if (!existingCheck) {
+        const safetyResult = await runSafetyChecks(domain, normalizedUrl);
+        db.insertSafetyCheck(site.id, safetyResult);
+
+        if (!safetyResult.safe) {
+          db.updateSiteStatus(site.id, 'disallowed');
+          db.clearSiteScores(site.id);
+          db.log('warn', `Site disallowed: ${domain} by ${clientIp}`);
+          return redirect(res, `/site/${encodeURIComponent(domain)}`);
+        }
+      }
+
       db.enqueue(site.id, 1); // priority 1 for user submissions
       db.log('info', `URL submitted: ${domain} by ${clientIp}`);
-      return redirect(res, `/site/${encodeURIComponent(domain)}`);
     }
 
     // ── SITE DETAIL ──
@@ -209,7 +229,9 @@ const server = http.createServer(async (req, res) => {
         return sendHtml(res, errorPage('Site Not Found', `No data for ${escHtml(domain)}. Submit it on the homepage!`), 404);
       }
       const results = db.getResultsForSite(site.id, 50);
-      return sendHtml(res, siteDetailTemplate.render({ site, results }));
+      const isAdmin = auth.isAuthenticated(req);
+      const safetyCheck = isAdmin ? db.getLatestSafetyCheck(site.id) : null;
+      return sendHtml(res, siteDetailTemplate.render({ site, results, isAdmin, safetyCheck }));
     }
 
     // ── SEARCH ──
@@ -314,7 +336,8 @@ const server = http.createServer(async (req, res) => {
           heapUsed: Math.round(mem.heapUsed / 1024 / 1024),
           heapTotal: Math.round(mem.heapTotal / 1024 / 1024),
         };
-        return sendHtml(res, adminStatusTemplate.render({ queueStats, activeQueue, logs, memoryUsage }));
+        const disallowedSites = db.getDisallowedSites(20);
+        return sendHtml(res, adminStatusTemplate.render({ queueStats, activeQueue, logs, memoryUsage, disallowedSites }));
       }
 
       // ── ADMIN: Settings ──

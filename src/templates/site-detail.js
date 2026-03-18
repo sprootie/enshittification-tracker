@@ -19,7 +19,7 @@ function scoreBar(label, score, maxScore = 10) {
   </div>`;
 }
 
-function render({ site, results }) {
+function render({ site, results, isAdmin = false, safetyCheck = null }) {
   const s = site;
   const latestResult = results[0];
   const screenshotUrl = latestResult?.screenshot_path
@@ -32,11 +32,16 @@ function render({ site, results }) {
   }));
 
   const isBlocked = s.status === 'blocked';
+  const isDisallowed = s.status === 'disallowed';
+  const isUnscorable = isBlocked || isDisallowed;
 
   const body = `
     <section class="site-header">
       <h1>${escHtml(s.domain)}</h1>
-      ${isBlocked ? `
+      ${isDisallowed ? `
+        <div class="blocked-badge disallowed-badge">DISALLOWED</div>
+        <p class="blocked-msg">This site has been flagged by automated safety checks and will not be analyzed.</p>
+      ` : isBlocked ? `
         <div class="blocked-badge">BLOCKED</div>
         <p class="blocked-msg">This site blocks automated access from both datacenter IPs and Tor exit nodes. We can't score it — but blocking bots to prevent analysis is itself a form of enshittification.</p>
       ` : `
@@ -53,7 +58,7 @@ function render({ site, results }) {
       </p>
     </section>
 
-    ${!isBlocked ? `<section class="card">
+    ${!isUnscorable ? `<section class="card">
       <h2>Score Breakdown</h2>
       ${scoreBar('Tracking', s.score_tracking)}
       ${scoreBar('Popups & Overlays', s.score_popups)}
@@ -103,9 +108,34 @@ function render({ site, results }) {
       </table>
       ${results.length === 0 ? '<p class="empty">No crawl results yet.</p>' : ''}
     </section>
+
+    ${isAdmin && safetyCheck ? `<section class="card">
+      <h2>Safety Check Details (Admin Only)</h2>
+      <p class="site-meta">Checked: ${escHtml(safetyCheck.checked_at)} | Overall: ${safetyCheck.is_safe ? 'SAFE' : 'FAILED'}</p>
+      <table class="site-table">
+        <thead><tr><th>Check</th><th>Status</th><th>Detail</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Cloudflare Family DNS</td>
+            <td class="${safetyCheck.cloudflare_safe ? 'safe-pass' : 'safe-fail'}">${safetyCheck.cloudflare_safe ? 'Pass' : 'FAIL'}</td>
+            <td>${escHtml(safetyCheck.cloudflare_detail)}</td>
+          </tr>
+          <tr>
+            <td>Google Safe Browsing</td>
+            <td class="${safetyCheck.google_safe ? 'safe-pass' : 'safe-fail'}">${safetyCheck.google_safe ? 'Pass' : 'FAIL'}</td>
+            <td>${escHtml(safetyCheck.google_detail)}</td>
+          </tr>
+          <tr>
+            <td>VirusTotal</td>
+            <td class="${safetyCheck.virustotal_safe ? 'safe-pass' : 'safe-fail'}">${safetyCheck.virustotal_safe ? 'Pass' : 'FAIL'}</td>
+            <td>${escHtml(safetyCheck.virustotal_detail)}</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>` : ''}
   `;
 
-  return layout(s.domain, body);
+  return layout(s.domain, body, { isAdmin });
 }
 
 module.exports = { render };

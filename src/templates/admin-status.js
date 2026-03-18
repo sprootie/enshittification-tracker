@@ -1,6 +1,6 @@
 const { layout, escHtml } = require('./layout');
 
-function render({ queueStats, activeQueue, logs, memoryUsage }) {
+function render({ queueStats, activeQueue, logs, memoryUsage, disallowedSites }) {
   const statsMap = {};
   queueStats.forEach(s => { statsMap[s.status] = s.count; });
 
@@ -54,6 +54,22 @@ function render({ queueStats, activeQueue, logs, memoryUsage }) {
         </table>
         ${activeQueue.length === 0 ? '<p class="empty">Queue is empty.</p>' : ''}
       </div>
+
+      ${disallowedSites && disallowedSites.length > 0 ? `<div class="card">
+        <h2>Disallowed Sites</h2>
+        <table class="site-table">
+          <thead><tr><th>Domain</th><th>Checked</th><th>Cloudflare</th><th>Google</th><th>VirusTotal</th></tr></thead>
+          <tbody>
+            ${disallowedSites.map(s => `<tr>
+              <td><a href="/site/${escHtml(s.domain)}">${escHtml(s.domain)}</a></td>
+              <td>${escHtml(s.checked_at)}</td>
+              <td>${escHtml(s.cloudflare_detail || '—')}</td>
+              <td>${escHtml(s.google_detail || '—')}</td>
+              <td>${escHtml(s.virustotal_detail || '—')}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>` : ''}
 
       <div class="card">
         <h2>Recent Logs</h2>
