@@ -232,9 +232,14 @@ function forceGC() {
   if (global.gc) global.gc();
 }
 
+const BOT_USER_AGENT = 'EnshittificationIndexBot/1.0 (+https://enshittify.me/bot) Chrome/131.0';
+
 // ── Core crawl logic (shared between direct and Tor) ────────────
-async function performCrawl(browserInstance, url, timeout) {
+async function performCrawl(browserInstance, url, timeout, userAgent) {
   const page = await browserInstance.newPage();
+  if (userAgent) {
+    await page.setUserAgent(userAgent);
+  }
   const requestUrls = [];
   const netStats = { totalBytes: 0, jsBytes: 0, requestCount: 0, loadTime: 0 };
 
@@ -394,16 +399,42 @@ async function crawlSite(queueItem) {
         page = crawlResult.page;
         const blockCheck = await detectBlockPage(page);
         if (blockCheck.blocked) {
-          db.log('warn', `Tor also blocked for ${domain}: ${blockCheck.reason} — marking as blocked`);
+          db.log('warn', `Tor also blocked for ${domain}: ${blockCheck.reason}`);
+          try { await page.close(); } catch {}
+          page = null;
+          crawlResult = null;
+          proxyUsed = 'direct';
+        }
+      } catch (torErr) {
+        db.log('warn', `Tor crawl failed for ${domain}: ${torErr.message}`);
+        crawlResult = null;
+      }
+    }
+
+    // Attempt 4: Bot-identified crawl (last resort — identifies as a crawler)
+    let botMode = false;
+    if (!crawlResult) {
+      bus.emit('crawl:status', { domain, status: 'crawling', message: 'Retrying as identified bot...' });
+      db.log('info', `Retrying ${domain} with bot User-Agent`);
+      try {
+        await ensureDirectBrowser();
+        crawlResult = await performCrawl(browser, url, CRAWL_TIMEOUT, BOT_USER_AGENT);
+        proxyUsed = 'direct';
+        botMode = true;
+
+        page = crawlResult.page;
+        const blockCheck = await detectBlockPage(page);
+        if (blockCheck.blocked) {
+          db.log('warn', `Bot UA also blocked for ${domain}: ${blockCheck.reason} — marking as blocked`);
           db.updateSiteStatus(site_id, 'blocked');
           db.clearSiteScores(site_id);
           db.completeQueueItem(queueId);
-          bus.emit('crawl:blocked', { domain, reason: 'Blocked by direct, VPN, and Tor connections' });
+          bus.emit('crawl:blocked', { domain, reason: 'Blocked by all connection methods including bot identification' });
           crawlCount++;
           return;
         }
-      } catch (torErr) {
-        db.log('warn', `Tor crawl failed for ${domain}: ${torErr.message} — marking as blocked`);
+      } catch (botErr) {
+        db.log('warn', `Bot crawl failed for ${domain}: ${botErr.message} — marking as blocked`);
         db.updateSiteStatus(site_id, 'blocked');
         db.clearSiteScores(site_id);
         db.completeQueueItem(queueId);
@@ -494,7 +525,7 @@ async function crawlSite(queueItem) {
     }
 
     // Store results
-    db.updateSiteScores(site_id, scores);
+    db.updateSiteScores(site_id, scores, botMode);
 
     db.insertResult({
       site_id,
@@ -517,11 +548,13 @@ async function crawlSite(queueItem) {
       js_size_bytes: netStats.jsBytes,
       dom_node_count: bloat.metrics.dom_node_count,
       screenshot_path: screenshotPath,
+      bot_crawl: botMode ? 1 : 0,
     });
 
     db.completeQueueItem(queueId);
     const via = proxyUsed !== 'direct' ? ` (via ${proxyUsed.toUpperCase()})` : '';
-    db.log('info', `Completed ${domain}: overall=${scores.overall}${via}`);
+    const botLabel = botMode ? ' [BOT MODE]' : '';
+    db.log('info', `Completed ${domain}: overall=${scores.overall}${via}${botLabel}`);
     bus.emit('crawl:complete', { domain, scores });
     crawlCount++;
 

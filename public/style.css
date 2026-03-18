@@ -230,6 +230,18 @@ a:hover { text-decoration: underline; }
 .overall-label { font-size: 1rem; color: #666; }
 .site-meta { color: #666; font-size: 0.85rem; }
 .status-reason { color: #f44336; font-size: 0.85rem; margin-top: 8px; }
+.bot-crawl-notice {
+  background: #2a2a1a;
+  border: 1px solid #d4a017;
+  color: #d4a017;
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-size: 0.85rem;
+  margin-bottom: 12px;
+  max-width: 550px;
+  margin-left: auto;
+  margin-right: auto;
+}
 
 /* ── Score Bars ──────────────────────────────────────────── */
 .score-bar-row {

@@ -24,7 +24,8 @@ db.exec(`
     score_paywalls REAL,
     score_dark_patterns REAL,
     score_bloat REAL,
-    status TEXT NOT NULL DEFAULT 'pending'
+    status TEXT NOT NULL DEFAULT 'pending',
+    bot_crawl INTEGER NOT NULL DEFAULT 0
   );
 
   CREATE TABLE IF NOT EXISTS crawl_queue (
@@ -59,7 +60,8 @@ db.exec(`
     request_count INTEGER,
     js_size_bytes INTEGER,
     dom_node_count INTEGER,
-    screenshot_path TEXT
+    screenshot_path TEXT,
+    bot_crawl INTEGER NOT NULL DEFAULT 0
   );
 
   CREATE TABLE IF NOT EXISTS crawl_log (
@@ -116,6 +118,10 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_submissions_site ON submissions(site_id);
 `);
 
+// ── Migrations (add columns to existing tables) ─────────────────
+try { db.exec('ALTER TABLE sites ADD COLUMN bot_crawl INTEGER NOT NULL DEFAULT 0'); } catch {}
+try { db.exec('ALTER TABLE crawl_results ADD COLUMN bot_crawl INTEGER NOT NULL DEFAULT 0'); } catch {}
+
 // ── Default settings ────────────────────────────────────────────
 const defaultSettings = {
   max_crawlers: '1',
@@ -144,7 +150,8 @@ const stmts = {
     UPDATE sites SET
       score_overall = ?, score_tracking = ?, score_popups = ?,
       score_ads = ?, score_paywalls = ?, score_dark_patterns = ?, score_bloat = ?,
-      last_crawled = datetime('now'), crawl_count = crawl_count + 1, status = 'done'
+      last_crawled = datetime('now'), crawl_count = crawl_count + 1, status = 'done',
+      bot_crawl = ?
     WHERE id = ?
   `),
   updateSiteStatus: db.prepare('UPDATE sites SET status = ? WHERE id = ?'),
@@ -228,8 +235,8 @@ const stmts = {
       metrics_tracking, metrics_popups, metrics_ads,
       metrics_paywalls, metrics_dark_patterns, metrics_bloat,
       page_load_time_ms, page_size_bytes, request_count, js_size_bytes,
-      dom_node_count, screenshot_path
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      dom_node_count, screenshot_path, bot_crawl
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `),
   getResultsForSite: db.prepare(
     'SELECT * FROM crawl_results WHERE site_id = ? ORDER BY crawled_at DESC LIMIT ?'
@@ -315,11 +322,11 @@ module.exports = {
   upsertSite(domain, url) {
     return stmts.insertSite.get(domain, url);
   },
-  updateSiteScores(id, scores) {
+  updateSiteScores(id, scores, botCrawl = false) {
     return stmts.updateSiteScores.run(
       scores.overall, scores.tracking, scores.popups,
       scores.ads, scores.paywalls, scores.dark_patterns, scores.bloat,
-      id
+      botCrawl ? 1 : 0, id
     );
   },
   updateSiteStatus(id, status) {
@@ -434,7 +441,8 @@ module.exports = {
       result.metrics_tracking, result.metrics_popups, result.metrics_ads,
       result.metrics_paywalls, result.metrics_dark_patterns, result.metrics_bloat,
       result.page_load_time_ms, result.page_size_bytes, result.request_count,
-      result.js_size_bytes, result.dom_node_count, result.screenshot_path
+      result.js_size_bytes, result.dom_node_count, result.screenshot_path,
+      result.bot_crawl || 0
     );
   },
   getResultsForSite(siteId, limit = 50) {

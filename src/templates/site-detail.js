@@ -34,10 +34,15 @@ function render({ site, results, isAdmin = false, safetyCheck = null, submission
   const isBlocked = s.status === 'blocked';
   const isDisallowed = s.status === 'disallowed';
   const isUnscorable = isBlocked || isDisallowed;
+  const isBotCrawl = s.bot_crawl === 1;
 
   const body = `
     <section class="site-header" data-domain="${escHtml(s.domain)}" data-status="${escHtml(s.status)}">
       <h1>${escHtml(s.domain)}</h1>
+      ${isBotCrawl && !isUnscorable ? `<div class="bot-crawl-notice">
+        <strong>Bot-scanned</strong> — This site blocked normal browsing, so it was crawled using a bot identifier.
+        Scores may be artificially low as sites often serve cleaner pages to bots.
+      </div>` : ''}
       <div id="live-status" class="live-status" style="display:none">
         <span class="live-dot"></span>
         <span id="live-message">Waiting...</span>
