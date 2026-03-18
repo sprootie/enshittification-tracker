@@ -254,6 +254,32 @@ async function performCrawl(browserInstance, url, timeout) {
   }
 }
 
+// ── Metric helpers ──────────────────────────────────────────────
+async function runAllMetrics(page, requestUrls, netStats) {
+  const [tracking, popups, ads, paywalls, dark, bloat] = await Promise.all([
+    metricsTracking.evaluate(page, requestUrls),
+    metricsPopups.evaluate(page, requestUrls),
+    metricsAds.evaluate(page, requestUrls),
+    metricsPaywalls.evaluate(page, requestUrls),
+    metricsDark.evaluate(page, requestUrls),
+    metricsBloat.evaluate(page, requestUrls, netStats),
+  ]);
+  return { tracking, popups, ads, paywalls, dark, bloat };
+}
+
+function buildScores(metricResults) {
+  const scores = {
+    tracking: metricResults.tracking.score,
+    popups: metricResults.popups.score,
+    ads: metricResults.ads.score,
+    paywalls: metricResults.paywalls.score,
+    dark_patterns: metricResults.dark.score,
+    bloat: metricResults.bloat.score,
+  };
+  scores.overall = computeOverall(scores);
+  return scores;
+}
+
 // ── Main crawl function ─────────────────────────────────────────
 async function crawlSite(queueItem) {
   const { id: queueId, site_id, domain, url } = queueItem;
@@ -311,24 +337,30 @@ async function crawlSite(queueItem) {
     }
 
     // ── Run metrics ──
-    const [tracking, popups, ads, paywalls, dark, bloat] = await Promise.all([
-      metricsTracking.evaluate(page, requestUrls),
-      metricsPopups.evaluate(page, requestUrls),
-      metricsAds.evaluate(page, requestUrls),
-      metricsPaywalls.evaluate(page, requestUrls),
-      metricsDark.evaluate(page, requestUrls),
-      metricsBloat.evaluate(page, requestUrls, netStats),
-    ]);
+    let metricResults = await runAllMetrics(page, requestUrls, netStats);
+    let scores = buildScores(metricResults);
 
-    const scores = {
-      tracking: tracking.score,
-      popups: popups.score,
-      ads: ads.score,
-      paywalls: paywalls.score,
-      dark_patterns: dark.score,
-      bloat: bloat.score,
-    };
-    scores.overall = computeOverall(scores);
+    // ── Low-score heuristic: if direct crawl scored suspiciously low, ──
+    // ── the site probably served a block page we didn't pattern-match  ──
+    const SUSPICIOUS_SCORE_THRESHOLD = 0.5;
+    if (!usedTor && scores.overall < SUSPICIOUS_SCORE_THRESHOLD) {
+      db.log('warn', `Suspicious low score (${scores.overall}) for ${domain} — retrying via Tor`);
+      try { await page.close(); } catch {}
+      page = null;
+
+      await ensureTorBrowser();
+      crawlResult = await performCrawl(torBrowser, url, TOR_CRAWL_TIMEOUT);
+      page = crawlResult.page;
+      requestUrls = crawlResult.requestUrls;
+      netStats = crawlResult.netStats;
+      usedTor = true;
+
+      metricResults = await runAllMetrics(page, requestUrls, netStats);
+      scores = buildScores(metricResults);
+      db.log('info', `Tor rescore for ${domain}: overall=${scores.overall}`);
+    }
+
+    const { tracking, popups, ads, paywalls, dark, bloat } = metricResults;
 
     // Screenshot
     let screenshotPath = null;
