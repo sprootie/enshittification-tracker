@@ -207,6 +207,16 @@ const server = http.createServer(async (req, res) => {
       const existingCheck = db.getLatestSafetyCheck(site.id);
       if (!existingCheck) {
         const safetyResult = await runSafetyChecks(domain, normalizedUrl);
+
+        // VT quota exceeded or API error — don't bypass, ask user to wait
+        if (safetyResult.safe === null) {
+          const waitMin = Math.ceil((safetyResult.retryAfterMs || 60000) / 60000);
+          return sendHtml(res, errorPage(
+            'Safety Check Unavailable',
+            `Our safety verification service is temporarily at capacity. Please try again in about ${waitMin} minute${waitMin > 1 ? 's' : ''}.`
+          ), 503);
+        }
+
         db.insertSafetyCheck(site.id, safetyResult);
 
         if (!safetyResult.safe) {
