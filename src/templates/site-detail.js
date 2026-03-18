@@ -89,8 +89,21 @@ function render({ site, results, isAdmin = false, safetyCheck = null, submission
     </section>` : ''}
 
     ${screenshotUrl ? `<section class="card">
-      <h2>Screenshot</h2>
+      <h2>Latest Screenshot</h2>
       <img class="screenshot" src="${escHtml(screenshotUrl)}" alt="Screenshot of ${escHtml(s.domain)}">
+    </section>` : ''}
+
+    ${isAdmin && results.filter(r => r.screenshot_path).length > 1 ? `<section class="card">
+      <h2>Screenshot History (Admin Only)</h2>
+      <div class="screenshot-grid">
+        ${results.filter(r => r.screenshot_path).map(r => `<div class="screenshot-item">
+          <img class="screenshot-thumb" src="/static/${escHtml(r.screenshot_path)}" alt="Screenshot from ${escHtml(r.crawled_at)}">
+          <span class="screenshot-date">${escHtml(r.crawled_at)}</span>
+        </div>`).join('')}
+      </div>
+      <form method="POST" action="/admin/sites/clear-screenshots/${encodeURIComponent(s.domain)}" style="margin-top:12px">
+        <button type="submit" class="btn-small btn-danger" onclick="return confirm('Delete all screenshots except the latest?')">Clear Old Screenshots</button>
+      </form>
     </section>` : ''}
 
     ${results.length > 1 ? `<section class="card">

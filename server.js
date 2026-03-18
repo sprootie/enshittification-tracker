@@ -380,6 +380,27 @@ const server = http.createServer(async (req, res) => {
         return redirect(res, '/admin/sites');
       }
 
+      // ── ADMIN: Clear old screenshots ──
+      if (pathname.startsWith('/admin/sites/clear-screenshots/') && method === 'POST') {
+        const domain = decodeURIComponent(pathname.slice(31));
+        const site = db.getSiteByDomain(domain);
+        if (site) {
+          const results = db.getResultsForSite(site.id, 1000);
+          // Keep the latest, delete the rest
+          const oldResults = results.slice(1);
+          let deleted = 0;
+          for (const r of oldResults) {
+            if (r.screenshot_path) {
+              const filePath = path.join(__dirname, 'public', r.screenshot_path);
+              try { fs.unlinkSync(filePath); deleted++; } catch {}
+              db.clearScreenshotPath(r.id);
+            }
+          }
+          db.log('info', `Admin cleared ${deleted} old screenshots for ${domain}`);
+        }
+        return redirect(res, `/site/${encodeURIComponent(domain)}`);
+      }
+
       // ── ADMIN: Settings ──
       if (pathname === '/admin/settings') {
         if (method === 'GET') {

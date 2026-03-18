@@ -234,6 +234,9 @@ const stmts = {
   deleteResultsForSite: db.prepare(
     'DELETE FROM crawl_results WHERE site_id = (SELECT id FROM sites WHERE domain = ?)'
   ),
+  clearScreenshotPath: db.prepare(
+    'UPDATE crawl_results SET screenshot_path = NULL WHERE id = ?'
+  ),
 
   // Log
   insertLog: db.prepare(
@@ -430,6 +433,9 @@ module.exports = {
   },
   getResultsForSite(siteId, limit = 50) {
     return stmts.getResultsForSite.all(siteId, limit);
+  },
+  clearScreenshotPath(resultId) {
+    return stmts.clearScreenshotPath.run(resultId);
   },
 
   // Log
