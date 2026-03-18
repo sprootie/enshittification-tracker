@@ -87,6 +87,90 @@ async function evaluate(page, requestUrls) {
     });
     details.hidden_opt_out = tinyLinks;
 
+    // ── Disguised native ads ────────────────────────────────────
+    // Detect how deceptively sponsored content is presented
+
+    // 1. Sponsored items styled identically to organic content
+    //    (same container class/structure but with a tiny "sponsored" label)
+    let disguisedAds = 0;
+    const sponsoredEls = document.querySelectorAll(
+      '[data-promoted], [data-sponsored], [data-is-sponsored="true"], ' +
+      '[class*="sponsored"], [class*="promoted"]'
+    );
+    sponsoredEls.forEach(el => {
+      // Check if the sponsored label is tiny/hidden
+      const label = el.querySelector(
+        '[class*="sponsor"], [class*="promot"], [class*="paid"], [class*="ad-label"]'
+      );
+      if (label) {
+        const style = window.getComputedStyle(label);
+        const fontSize = parseFloat(style.fontSize);
+        const opacity = parseFloat(style.opacity);
+        // Tiny font, low opacity, or low contrast = deceptive
+        if (fontSize < 11 || opacity < 0.6) {
+          disguisedAds++;
+        }
+      }
+      // Sponsored item with no visible label at all
+      const allText = (el.textContent || '').toLowerCase();
+      if (!allText.includes('sponsored') && !allText.includes('promoted') &&
+          !allText.includes('paid') && !allText.includes('ad')) {
+        disguisedAds++;
+      }
+    });
+    details.disguised_ads = disguisedAds;
+
+    // 2. Clickbait headlines in recommendation widgets
+    let clickbaitCount = 0;
+    const recoContainers = document.querySelectorAll(
+      '[class*="taboola"], [class*="outbrain"], [class*="mgid"], ' +
+      '[class*="revcontent"], [class*="content-recommendation"], ' +
+      '[class*="recommended"], .OUTBRAIN'
+    );
+    recoContainers.forEach(container => {
+      const recoLinks = container.querySelectorAll('a');
+      recoLinks.forEach(link => {
+        const text = (link.textContent || '').trim().toLowerCase();
+        const clickbaitPatterns = [
+          /you won'?t believe/i, /doctors hate/i, /this one trick/i,
+          /shocking/i, /jaw.?dropping/i, /mind.?blowing/i,
+          /what happens next/i, /will blow your mind/i,
+          /\d+ (things|ways|reasons|signs|secrets)/i,
+          /before it'?s too late/i, /don'?t miss/i,
+        ];
+        if (clickbaitPatterns.some(p => p.test(text))) clickbaitCount++;
+      });
+    });
+    details.clickbait_in_widgets = clickbaitCount;
+
+    // 3. "Sponsored" disclosure buried in tiny text or far from content
+    let buriedDisclosures = 0;
+    const allEls = document.querySelectorAll('*');
+    for (const el of allEls) {
+      if (el.children.length > 3) continue;
+      const text = (el.textContent || '').trim().toLowerCase();
+      if (text.length > 40) continue;
+      if (text === 'sponsored' || text === 'promoted' || text === 'ad' ||
+          text === 'paid content' || text === 'advertisement') {
+        const style = window.getComputedStyle(el);
+        const fontSize = parseFloat(style.fontSize);
+        const color = style.color;
+        const bg = style.backgroundColor;
+        // Check for low-contrast or tiny disclosure
+        if (fontSize < 10) buriedDisclosures++;
+        // Grey-on-grey type hiding
+        if (color.includes('rgb') && bg.includes('rgb')) {
+          const colorMatch = color.match(/\d+/g);
+          const bgMatch = bg.match(/\d+/g);
+          if (colorMatch && bgMatch) {
+            const diff = Math.abs(parseInt(colorMatch[0]) - parseInt(bgMatch[0]));
+            if (diff < 40) buriedDisclosures++; // very low contrast
+          }
+        }
+      }
+    }
+    details.buried_disclosures = buriedDisclosures;
+
     return details;
   });
 
@@ -95,10 +179,14 @@ async function evaluate(page, requestUrls) {
   const buttonScore = linearScale(domMetrics.deceptive_buttons, 0, 2);
   const urgencyScore = linearScale(domMetrics.urgency_elements, 0, 3);
   const optOutScore = linearScale(domMetrics.hidden_opt_out, 0, 2);
+  const disguisedAdScore = linearScale(domMetrics.disguised_ads, 0, 5);
+  const clickbaitScore = linearScale(domMetrics.clickbait_in_widgets, 0, 5);
+  const buriedScore = linearScale(domMetrics.buried_disclosures, 0, 3);
 
   const score = Math.round(
-    (guiltScore * 0.25 + precheckedScore * 0.20 + buttonScore * 0.25 +
-     urgencyScore * 0.15 + optOutScore * 0.15) * 100
+    (guiltScore * 0.15 + precheckedScore * 0.12 + buttonScore * 0.15 +
+     urgencyScore * 0.10 + optOutScore * 0.08 +
+     disguisedAdScore * 0.18 + clickbaitScore * 0.12 + buriedScore * 0.10) * 100
   ) / 100;
 
   return {
