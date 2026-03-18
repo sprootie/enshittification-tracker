@@ -1,6 +1,6 @@
 const { layout, escHtml } = require('./layout');
 
-function render({ queueStats, activeQueue, logs, memoryUsage, disallowedSites, recentSubmissions, topSubmitters }) {
+function render({ queueStats, activeQueue, logs, memoryUsage, diskUsage, disallowedSites, recentSubmissions, topSubmitters }) {
   const statsMap = {};
   queueStats.forEach(s => { statsMap[s.status] = s.count; });
 
@@ -31,6 +31,8 @@ function render({ queueStats, activeQueue, logs, memoryUsage, disallowedSites, r
             <div class="metric"><strong>RSS</strong><span>${memoryUsage.rss}MB</span></div>
             <div class="metric"><strong>Heap Used</strong><span>${memoryUsage.heapUsed}MB</span></div>
             <div class="metric"><strong>Heap Total</strong><span>${memoryUsage.heapTotal}MB</span></div>
+            <div class="metric"><strong>DB Size</strong><span>${diskUsage.dbSize}</span></div>
+            <div class="metric"><strong>Screenshots</strong><span>${diskUsage.screenshotsSize}</span></div>
           </div>
         </div>
       </div>

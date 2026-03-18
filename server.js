@@ -119,6 +119,36 @@ function parseBody(req) {
   });
 }
 
+function formatBytes(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+}
+
+function getDiskUsage() {
+  let dbSize = 0;
+  const dbPath = process.env.DB_PATH || path.join(__dirname, 'data', 'enshittindex.db');
+  try { dbSize = fs.statSync(dbPath).size; } catch {}
+  // Also count WAL and SHM files
+  try { dbSize += fs.statSync(dbPath + '-wal').size; } catch {}
+  try { dbSize += fs.statSync(dbPath + '-shm').size; } catch {}
+
+  let screenshotsSize = 0;
+  const ssDir = path.join(__dirname, 'public', 'screenshots');
+  try {
+    const files = fs.readdirSync(ssDir);
+    for (const f of files) {
+      try { screenshotsSize += fs.statSync(path.join(ssDir, f)).size; } catch {}
+    }
+  } catch {}
+
+  return {
+    dbSize: formatBytes(dbSize),
+    screenshotsSize: formatBytes(screenshotsSize),
+  };
+}
+
 function escHtml(str) {
   if (!str) return '';
   return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;')
@@ -338,10 +368,11 @@ const server = http.createServer(async (req, res) => {
           heapUsed: Math.round(mem.heapUsed / 1024 / 1024),
           heapTotal: Math.round(mem.heapTotal / 1024 / 1024),
         };
+        const diskUsage = getDiskUsage();
         const disallowedSites = db.getDisallowedSites(20);
         const recentSubmissions = db.getRecentSubmissions(30);
         const topSubmitters = db.getTopSubmitters(15);
-        return sendHtml(res, adminStatusTemplate.render({ queueStats, activeQueue, logs, memoryUsage, disallowedSites, recentSubmissions, topSubmitters }));
+        return sendHtml(res, adminStatusTemplate.render({ queueStats, activeQueue, logs, memoryUsage, diskUsage, disallowedSites, recentSubmissions, topSubmitters }));
       }
 
       // ── ADMIN: Sites ──
