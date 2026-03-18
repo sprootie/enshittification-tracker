@@ -416,6 +416,44 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    // ── SSE: All crawl events (admin) ──
+    if (pathname === '/api/events' && method === 'GET') {
+      if (!auth.isAuthenticated(req)) {
+        return sendJson(res, { error: 'Unauthorized' }, 401);
+      }
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no',
+      });
+
+      const keepAlive = setInterval(() => { res.write(': ping\n\n'); }, 30000);
+
+      const emit = (data) => { res.write(`data: ${JSON.stringify(data)}\n\n`); };
+      const onStatus = (d) => emit({ type: 'status', ...d });
+      const onMetric = (d) => emit({ type: 'metric', ...d });
+      const onComplete = (d) => emit({ type: 'complete', ...d });
+      const onBlocked = (d) => emit({ type: 'blocked', ...d });
+      const onError = (d) => emit({ type: 'error', ...d });
+
+      bus.on('crawl:status', onStatus);
+      bus.on('crawl:metric', onMetric);
+      bus.on('crawl:complete', onComplete);
+      bus.on('crawl:blocked', onBlocked);
+      bus.on('crawl:error', onError);
+
+      req.on('close', () => {
+        clearInterval(keepAlive);
+        bus.off('crawl:status', onStatus);
+        bus.off('crawl:metric', onMetric);
+        bus.off('crawl:complete', onComplete);
+        bus.off('crawl:blocked', onBlocked);
+        bus.off('crawl:error', onError);
+      });
+      return;
+    }
+
     // ── ADMIN: Login ──
     if (pathname === '/admin/login') {
       if (method === 'GET') {

@@ -88,10 +88,10 @@ function render({ sites, total, query, status, sort, dir, page, perPage, message
           </tr>
         </thead>
         <tbody>
-          ${sites.map(s => `<tr>
+          ${sites.map(s => `<tr data-domain="${escHtml(s.domain)}" data-status="${escHtml(s.status)}">
             <td><a href="/site/${escHtml(s.domain)}">${escHtml(s.domain)}</a></td>
-            <td>${statusBadge(s.status)}</td>
-            <td style="color:${scoreColor(s.score_overall)};font-weight:700">${s.score_overall != null ? s.score_overall.toFixed(1) : '—'}</td>
+            <td class="status-col">${statusBadge(s.status)}</td>
+            <td class="score-col" style="color:${scoreColor(s.score_overall)};font-weight:700">${s.score_overall != null ? s.score_overall.toFixed(1) : '—'}</td>
             <td>${escHtml(s.last_crawled || '—')}</td>
             <td>${s.crawl_count}</td>
             <td class="action-cell">

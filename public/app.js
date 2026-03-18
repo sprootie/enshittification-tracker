@@ -1,6 +1,6 @@
-// ── Live crawl updates via SSE ───────────────────────────────
+// ── Live crawl updates via SSE (site detail page) ───────────
 document.addEventListener('DOMContentLoaded', () => {
-  const header = document.querySelector('[data-domain][data-status]');
+  const header = document.querySelector('.site-header[data-domain][data-status]');
   if (!header) return;
 
   const domain = header.dataset.domain;
@@ -90,6 +90,76 @@ document.addEventListener('DOMContentLoaded', () => {
         .catch(() => location.reload());
     }, 5000);
   };
+});
+
+// ── Live updates for admin sites table ───────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  // Only activate on the admin sites page
+  const rows = document.querySelectorAll('tr[data-domain][data-status]');
+  if (rows.length === 0) return;
+
+  // Check if any rows are pending or crawling
+  const activeRows = Array.from(rows).filter(r =>
+    r.dataset.status === 'pending' || r.dataset.status === 'crawling'
+  );
+  if (activeRows.length === 0) return;
+
+  const es = new EventSource('/api/events');
+
+  function scoreColor(s) {
+    if (s == null) return '#666';
+    if (s <= 3) return '#2d9a2d';
+    if (s <= 6) return '#d4a017';
+    return '#d32f2f';
+  }
+
+  function statusHtml(status) {
+    const colors = {
+      done: '#2d9a2d', pending: '#d4a017', crawling: '#2196f3',
+      error: '#f44336', blocked: '#ff9800', disallowed: '#f44336',
+    };
+    const color = colors[status] || '#666';
+    return `<span class="status-badge" style="color:${color};border-color:${color}">${status}</span>`;
+  }
+
+  es.onmessage = (event) => {
+    let data;
+    try { data = JSON.parse(event.data); } catch { return; }
+
+    const row = document.querySelector(`tr[data-domain="${data.domain}"]`);
+    if (!row) return;
+
+    const statusCell = row.querySelector('.status-col');
+    const scoreCell = row.querySelector('.score-col');
+
+    if (data.type === 'status') {
+      row.dataset.status = data.status;
+      if (statusCell) statusCell.innerHTML = statusHtml(data.status === 'scoring' ? 'crawling' : data.status);
+    }
+
+    if (data.type === 'complete') {
+      row.dataset.status = 'done';
+      if (statusCell) statusCell.innerHTML = statusHtml('done');
+      if (scoreCell && data.scores) {
+        const s = data.scores.overall;
+        scoreCell.textContent = s != null ? s.toFixed(1) : '—';
+        scoreCell.style.color = scoreColor(s);
+      }
+    }
+
+    if (data.type === 'blocked') {
+      row.dataset.status = 'blocked';
+      if (statusCell) statusCell.innerHTML = statusHtml('blocked');
+      if (scoreCell) { scoreCell.textContent = '—'; scoreCell.style.color = '#666'; }
+    }
+
+    if (data.type === 'error') {
+      row.dataset.status = 'error';
+      if (statusCell) statusCell.innerHTML = statusHtml('error');
+    }
+  };
+
+  es.onerror = () => {};
 });
 
 // ── History Chart (simple canvas-based) ──────────────────────
