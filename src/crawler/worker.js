@@ -348,114 +348,92 @@ async function crawlSite(queueItem) {
   let page = null;
   let requestUrls = [];
   let netStats = {};
-  let proxyUsed = 'direct'; // 'direct' | 'pia' | 'tor'
+  let proxyUsed = 'direct';
+  const attempts = []; // track each method tried
+
+  // Helper to try a crawl method and record the attempt
+  async function tryMethod(name, browserInstance, timeout, userAgent) {
+    const attempt = { method: name, status: 'trying', reason: null };
+    attempts.push(attempt);
+    bus.emit('crawl:status', { domain, status: 'crawling', message: `Trying ${name}...` });
+
+    try {
+      const result = await performCrawl(browserInstance, url, timeout, userAgent);
+      const p = result.page;
+      const blockCheck = await detectBlockPage(p);
+      if (blockCheck.blocked) {
+        attempt.status = 'blocked';
+        attempt.reason = blockCheck.reason;
+        db.log('warn', `${name} blocked for ${domain}: ${blockCheck.reason}`);
+        try { await p.close(); } catch {}
+        return null;
+      }
+      attempt.status = 'success';
+      return result;
+    } catch (err) {
+      attempt.status = 'error';
+      attempt.reason = err.message;
+      db.log('warn', `${name} failed for ${domain}: ${err.message}`);
+      return null;
+    }
+  }
+
+  // Helper to save a blocked/failed result with attempts log
+  function saveBlockedResult() {
+    db.insertResult({
+      site_id, score_overall: null, score_tracking: null, score_popups: null,
+      score_ads: null, score_paywalls: null, score_dark_patterns: null, score_bloat: null,
+      metrics_tracking: null, metrics_popups: null, metrics_ads: null,
+      metrics_paywalls: null, metrics_dark_patterns: null, metrics_bloat: null,
+      page_load_time_ms: null, page_size_bytes: null, request_count: null,
+      js_size_bytes: null, dom_node_count: null, screenshot_path: null,
+      bot_crawl: 0, crawl_attempts: JSON.stringify(attempts),
+    });
+  }
 
   try {
-    // ── Tiered crawl: Direct → PIA → Tor ──
+    // ── Tiered crawl: Direct → PIA → Tor → Bot UA ──
     await ensureDirectBrowser();
     let crawlResult;
 
     // Attempt 1: Direct
-    try {
-      crawlResult = await performCrawl(browser, url, CRAWL_TIMEOUT);
-    } catch (directErr) {
-      db.log('warn', `Direct crawl failed for ${domain}: ${directErr.message}`);
-      crawlResult = null;
-    }
+    crawlResult = await tryMethod('Direct', browser, CRAWL_TIMEOUT);
 
-    // Check direct result for block page
-    if (crawlResult) {
-      page = crawlResult.page;
-      const blockCheck = await detectBlockPage(page);
-      if (blockCheck.blocked) {
-        db.log('warn', `Block page detected for ${domain}: ${blockCheck.reason}`);
-        try { await page.close(); } catch {}
-        page = null;
-        crawlResult = null;
-      }
-    }
-
-    // Attempt 2: PIA proxy (if direct failed/blocked)
+    // Attempt 2: PIA proxy
     if (!crawlResult && PIA_PROXY) {
-      bus.emit('crawl:status', { domain, status: 'crawling', message: 'Retrying via VPN proxy...' });
-      db.log('info', `Retrying ${domain} via PIA proxy`);
-      try {
-        await ensurePiaBrowser();
-        crawlResult = await performCrawl(piaBrowser, url, PROXY_CRAWL_TIMEOUT);
-        proxyUsed = 'pia';
-
-        page = crawlResult.page;
-        const blockCheck = await detectBlockPage(page);
-        if (blockCheck.blocked) {
-          db.log('warn', `PIA also blocked for ${domain}: ${blockCheck.reason}`);
-          try { await page.close(); } catch {}
-          page = null;
-          crawlResult = null;
-          proxyUsed = 'direct';
-        }
-      } catch (piaErr) {
-        db.log('warn', `PIA crawl failed for ${domain}: ${piaErr.message}`);
-        crawlResult = null;
-      }
+      await ensurePiaBrowser();
+      crawlResult = await tryMethod('PIA VPN', piaBrowser, PROXY_CRAWL_TIMEOUT);
+      if (crawlResult) proxyUsed = 'pia';
     }
 
-    // Attempt 3: Tor (if PIA also failed/blocked)
+    // Attempt 3: Tor
     if (!crawlResult) {
-      bus.emit('crawl:status', { domain, status: 'crawling', message: 'Retrying via Tor...' });
-      db.log('info', `Retrying ${domain} via Tor`);
-      try {
-        await ensureTorBrowser();
-        crawlResult = await performCrawl(torBrowser, url, TOR_CRAWL_TIMEOUT);
-        proxyUsed = 'tor';
-
-        page = crawlResult.page;
-        const blockCheck = await detectBlockPage(page);
-        if (blockCheck.blocked) {
-          db.log('warn', `Tor also blocked for ${domain}: ${blockCheck.reason}`);
-          try { await page.close(); } catch {}
-          page = null;
-          crawlResult = null;
-          proxyUsed = 'direct';
-        }
-      } catch (torErr) {
-        db.log('warn', `Tor crawl failed for ${domain}: ${torErr.message}`);
-        crawlResult = null;
-      }
+      await ensureTorBrowser();
+      crawlResult = await tryMethod('Tor', torBrowser, TOR_CRAWL_TIMEOUT);
+      if (crawlResult) proxyUsed = 'tor';
     }
 
-    // Attempt 4: Bot-identified crawl (last resort — identifies as a crawler)
+    // Attempt 4: Bot UA
     let botMode = false;
     if (!crawlResult) {
-      bus.emit('crawl:status', { domain, status: 'crawling', message: 'Retrying as identified bot...' });
-      db.log('info', `Retrying ${domain} with bot User-Agent`);
-      try {
-        await ensureDirectBrowser();
-        crawlResult = await performCrawl(browser, url, CRAWL_TIMEOUT, BOT_USER_AGENT);
-        proxyUsed = 'direct';
-        botMode = true;
-
-        page = crawlResult.page;
-        const blockCheck = await detectBlockPage(page);
-        if (blockCheck.blocked) {
-          db.log('warn', `Bot UA also blocked for ${domain}: ${blockCheck.reason} — marking as blocked`);
-          db.updateSiteStatus(site_id, 'blocked');
-          db.clearSiteScores(site_id);
-          db.completeQueueItem(queueId);
-          bus.emit('crawl:blocked', { domain, reason: 'Blocked by all connection methods including bot identification' });
-          crawlCount++;
-          return;
-        }
-      } catch (botErr) {
-        db.log('warn', `Bot crawl failed for ${domain}: ${botErr.message} — marking as blocked`);
-        db.updateSiteStatus(site_id, 'blocked');
-        db.clearSiteScores(site_id);
-        db.completeQueueItem(queueId);
-        bus.emit('crawl:blocked', { domain, reason: 'All connection methods failed' });
-        crawlCount++;
-        return;
-      }
+      await ensureDirectBrowser();
+      crawlResult = await tryMethod('Bot UA', browser, CRAWL_TIMEOUT, BOT_USER_AGENT);
+      if (crawlResult) botMode = true;
     }
 
+    // All methods failed
+    if (!crawlResult) {
+      db.updateSiteStatus(site_id, 'blocked');
+      db.clearSiteScores(site_id);
+      db.completeQueueItem(queueId);
+      saveBlockedResult();
+      db.log('info', `Marked ${domain} as blocked (all methods failed)`);
+      bus.emit('crawl:blocked', { domain, reason: 'All connection methods failed' });
+      crawlCount++;
+      return;
+    }
+
+    page = crawlResult.page;
     requestUrls = crawlResult.requestUrls;
     netStats = crawlResult.netStats;
 
@@ -466,42 +444,38 @@ async function crawlSite(queueItem) {
 
     // ── Low-score heuristic: block page we didn't pattern-match ──
     const SUSPICIOUS_SCORE_THRESHOLD = 0.5;
-    if (proxyUsed === 'direct' && scores.overall < SUSPICIOUS_SCORE_THRESHOLD) {
+    if (proxyUsed === 'direct' && !botMode && scores.overall < SUSPICIOUS_SCORE_THRESHOLD) {
       db.log('warn', `Suspicious low score (${scores.overall}) for ${domain} — retrying`);
+      attempts.push({ method: `${proxyUsed} (low score ${scores.overall})`, status: 'low_score', reason: 'Score below threshold' });
       try { await page.close(); } catch {}
       page = null;
 
-      // Try PIA first, then Tor
+      // Try PIA, then Tor
       let retryResult = null;
       if (PIA_PROXY) {
-        bus.emit('crawl:status', { domain, status: 'crawling', message: 'Low score, retrying via VPN...' });
-        try {
-          await ensurePiaBrowser();
-          retryResult = await performCrawl(piaBrowser, url, PROXY_CRAWL_TIMEOUT);
-          proxyUsed = 'pia';
-        } catch {}
+        await ensurePiaBrowser();
+        retryResult = await tryMethod('PIA VPN (low-score retry)', piaBrowser, PROXY_CRAWL_TIMEOUT);
+        if (retryResult) proxyUsed = 'pia';
       }
       if (!retryResult) {
-        bus.emit('crawl:status', { domain, status: 'crawling', message: 'Low score, retrying via Tor...' });
         await ensureTorBrowser();
-        retryResult = await performCrawl(torBrowser, url, TOR_CRAWL_TIMEOUT);
-        proxyUsed = 'tor';
+        retryResult = await tryMethod('Tor (low-score retry)', torBrowser, TOR_CRAWL_TIMEOUT);
+        if (retryResult) proxyUsed = 'tor';
+      }
+
+      if (!retryResult) {
+        db.updateSiteStatus(site_id, 'blocked');
+        db.clearSiteScores(site_id);
+        db.completeQueueItem(queueId);
+        saveBlockedResult();
+        bus.emit('crawl:blocked', { domain, reason: 'Blocked across all connection methods' });
+        crawlCount++;
+        return;
       }
 
       page = retryResult.page;
       requestUrls = retryResult.requestUrls;
       netStats = retryResult.netStats;
-
-      const blockCheck = await detectBlockPage(page);
-      if (blockCheck.blocked) {
-        db.log('warn', `Retry also blocked for ${domain} — marking as blocked`);
-        db.updateSiteStatus(site_id, 'blocked');
-        db.clearSiteScores(site_id);
-        db.completeQueueItem(queueId);
-        bus.emit('crawl:blocked', { domain, reason: 'Blocked across all connection methods' });
-        crawlCount++;
-        return;
-      }
 
       bus.emit('crawl:status', { domain, status: 'scoring', message: 'Re-analyzing...' });
       metricResults = await runAllMetrics(page, requestUrls, netStats, domain);
@@ -509,9 +483,11 @@ async function crawlSite(queueItem) {
 
       if (scores.overall < SUSPICIOUS_SCORE_THRESHOLD) {
         db.log('warn', `Retry score still low (${scores.overall}) for ${domain} — marking as blocked`);
+        attempts.push({ method: `${proxyUsed} (retry)`, status: 'low_score', reason: `Score still ${scores.overall}` });
         db.updateSiteStatus(site_id, 'blocked');
         db.clearSiteScores(site_id);
         db.completeQueueItem(queueId);
+        saveBlockedResult();
         bus.emit('crawl:blocked', { domain, reason: 'Blocked across all connection methods' });
         crawlCount++;
         return;
@@ -561,6 +537,7 @@ async function crawlSite(queueItem) {
       dom_node_count: bloat.metrics.dom_node_count,
       screenshot_path: screenshotPath,
       bot_crawl: botMode ? 1 : 0,
+      crawl_attempts: JSON.stringify(attempts),
     });
 
     db.completeQueueItem(queueId);
@@ -574,6 +551,8 @@ async function crawlSite(queueItem) {
     db.failQueueItem(queueId, err.message);
     db.updateSiteStatus(site_id, 'error');
     db.log('error', `Failed ${domain}: ${err.message}`);
+    attempts.push({ method: 'crawl', status: 'error', reason: err.message });
+    saveBlockedResult();
     bus.emit('crawl:error', { domain, error: err.message });
   } finally {
     if (page) {

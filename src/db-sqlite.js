@@ -61,7 +61,8 @@ db.exec(`
     js_size_bytes INTEGER,
     dom_node_count INTEGER,
     screenshot_path TEXT,
-    bot_crawl INTEGER NOT NULL DEFAULT 0
+    bot_crawl INTEGER NOT NULL DEFAULT 0,
+    crawl_attempts TEXT
   );
 
   CREATE TABLE IF NOT EXISTS crawl_log (
@@ -121,6 +122,7 @@ db.exec(`
 // ── Migrations (add columns to existing tables) ─────────────────
 try { db.exec('ALTER TABLE sites ADD COLUMN bot_crawl INTEGER NOT NULL DEFAULT 0'); } catch {}
 try { db.exec('ALTER TABLE crawl_results ADD COLUMN bot_crawl INTEGER NOT NULL DEFAULT 0'); } catch {}
+try { db.exec('ALTER TABLE crawl_results ADD COLUMN crawl_attempts TEXT'); } catch {}
 
 // ── Default settings ────────────────────────────────────────────
 const defaultSettings = {
@@ -235,8 +237,8 @@ const stmts = {
       metrics_tracking, metrics_popups, metrics_ads,
       metrics_paywalls, metrics_dark_patterns, metrics_bloat,
       page_load_time_ms, page_size_bytes, request_count, js_size_bytes,
-      dom_node_count, screenshot_path, bot_crawl
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      dom_node_count, screenshot_path, bot_crawl, crawl_attempts
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `),
   getResultsForSite: db.prepare(
     'SELECT * FROM crawl_results WHERE site_id = ? ORDER BY crawled_at DESC LIMIT ?'
@@ -442,7 +444,7 @@ module.exports = {
       result.metrics_paywalls, result.metrics_dark_patterns, result.metrics_bloat,
       result.page_load_time_ms, result.page_size_bytes, result.request_count,
       result.js_size_bytes, result.dom_node_count, result.screenshot_path,
-      result.bot_crawl || 0
+      result.bot_crawl || 0, result.crawl_attempts || null
     );
   },
   getResultsForSite(siteId, limit = 50) {

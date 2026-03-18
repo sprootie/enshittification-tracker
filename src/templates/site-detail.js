@@ -1,5 +1,26 @@
 const { layout, escHtml } = require('./layout');
 
+function renderAttempts(attemptsJson) {
+  let attempts;
+  try { attempts = JSON.parse(attemptsJson); } catch { return ''; }
+  if (!attempts || !attempts.length) return '';
+
+  const statusColors = {
+    success: '#2d9a2d', blocked: '#ff9800', error: '#f44336', low_score: '#d4a017',
+  };
+
+  return `<tr class="attempts-row"><td colspan="8">
+    <div class="attempts-list">
+      ${attempts.map(a => {
+        const color = statusColors[a.status] || '#666';
+        return `<span class="attempt-badge" style="border-color:${color};color:${color}">
+          <strong>${escHtml(a.method)}</strong>: ${escHtml(a.status)}${a.reason ? ` — ${escHtml(a.reason.substring(0, 80))}` : ''}
+        </span>`;
+      }).join('')}
+    </div>
+  </td></tr>`;
+}
+
 function scoreColor(score) {
   if (score == null) return '#999';
   if (score <= 3) return '#2d9a2d';
@@ -132,7 +153,7 @@ function render({ site, results, isAdmin = false, safetyCheck = null, submission
         <thead><tr><th>Date</th><th>Overall</th><th>Track</th><th>Popups</th><th>Ads</th><th>Paywall</th><th>Dark</th><th>Bloat</th></tr></thead>
         <tbody>
           ${results.map(r => `<tr>
-            <td>${escHtml(r.crawled_at)}</td>
+            <td>${escHtml(r.crawled_at)}${r.bot_crawl ? ' <span style="color:#d4a017">[BOT]</span>' : ''}</td>
             <td style="color:${scoreColor(r.score_overall)}">${r.score_overall?.toFixed(1) || '—'}</td>
             <td>${r.score_tracking?.toFixed(1) || '—'}</td>
             <td>${r.score_popups?.toFixed(1) || '—'}</td>
@@ -140,7 +161,7 @@ function render({ site, results, isAdmin = false, safetyCheck = null, submission
             <td>${r.score_paywalls?.toFixed(1) || '—'}</td>
             <td>${r.score_dark_patterns?.toFixed(1) || '—'}</td>
             <td>${r.score_bloat?.toFixed(1) || '—'}</td>
-          </tr>`).join('')}
+          </tr>${isAdmin && r.crawl_attempts ? renderAttempts(r.crawl_attempts) : ''}`).join('')}
         </tbody>
       </table>
       ${results.length === 0 ? '<p class="empty">No crawl results yet.</p>' : ''}
