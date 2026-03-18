@@ -123,6 +123,12 @@ const stmts = {
     WHERE id = ?
   `),
   updateSiteStatus: db.prepare('UPDATE sites SET status = ? WHERE id = ?'),
+  clearSiteScores: db.prepare(`
+    UPDATE sites SET
+      score_overall = NULL, score_tracking = NULL, score_popups = NULL,
+      score_ads = NULL, score_paywalls = NULL, score_dark_patterns = NULL, score_bloat = NULL
+    WHERE id = ?
+  `),
   deleteSite: db.prepare('DELETE FROM sites WHERE domain = ?'),
   getTopSites: db.prepare(
     'SELECT * FROM sites WHERE score_overall IS NOT NULL ORDER BY score_overall ASC LIMIT ?'
@@ -240,6 +246,9 @@ module.exports = {
   },
   updateSiteStatus(id, status) {
     return stmts.updateSiteStatus.run(status, id);
+  },
+  clearSiteScores(id) {
+    return stmts.clearSiteScores.run(id);
   },
   deleteSite(domain) {
     stmts.deleteResultsForSite.run(domain);

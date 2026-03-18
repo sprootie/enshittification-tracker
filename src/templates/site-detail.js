@@ -31,13 +31,20 @@ function render({ site, results }) {
     score: r.score_overall,
   }));
 
+  const isBlocked = s.status === 'blocked';
+
   const body = `
     <section class="site-header">
       <h1>${escHtml(s.domain)}</h1>
-      <div class="overall-score" style="border-color:${scoreColor(s.score_overall)}">
-        <span class="overall-number" style="color:${scoreColor(s.score_overall)}">${s.score_overall != null ? s.score_overall.toFixed(1) : '—'}</span>
-        <span class="overall-label">/ 10</span>
-      </div>
+      ${isBlocked ? `
+        <div class="blocked-badge">BLOCKED</div>
+        <p class="blocked-msg">This site blocks automated access from both datacenter IPs and Tor exit nodes. We can't score it — but blocking bots to prevent analysis is itself a form of enshittification.</p>
+      ` : `
+        <div class="overall-score" style="border-color:${scoreColor(s.score_overall)}">
+          <span class="overall-number" style="color:${scoreColor(s.score_overall)}">${s.score_overall != null ? s.score_overall.toFixed(1) : '—'}</span>
+          <span class="overall-label">/ 10</span>
+        </div>
+      `}
       <p class="site-meta">
         First seen: ${escHtml(s.first_seen)} |
         Last crawled: ${escHtml(s.last_crawled || 'Never')} |
@@ -46,7 +53,7 @@ function render({ site, results }) {
       </p>
     </section>
 
-    <section class="card">
+    ${!isBlocked ? `<section class="card">
       <h2>Score Breakdown</h2>
       ${scoreBar('Tracking', s.score_tracking)}
       ${scoreBar('Popups & Overlays', s.score_popups)}
@@ -54,7 +61,7 @@ function render({ site, results }) {
       ${scoreBar('Paywalls', s.score_paywalls)}
       ${scoreBar('Dark Patterns', s.score_dark_patterns)}
       ${scoreBar('Page Bloat', s.score_bloat)}
-    </section>
+    </section>` : ''}
 
     ${latestResult ? `<section class="card">
       <h2>Latest Crawl Details</h2>

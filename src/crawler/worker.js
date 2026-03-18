@@ -330,8 +330,13 @@ async function crawlSite(queueItem) {
         // Check if Tor attempt is also blocked
         const torBlockCheck = await detectBlockPage(page);
         if (torBlockCheck.blocked) {
-          db.log('warn', `Tor also blocked for ${domain}: ${torBlockCheck.reason}`);
-          // Still proceed — score what we got, but log it
+          db.log('warn', `Tor also blocked for ${domain}: ${torBlockCheck.reason} — marking as blocked`);
+          db.updateSiteStatus(site_id, 'blocked');
+          db.clearSiteScores(site_id);
+          db.completeQueueItem(queueId);
+          db.log('info', `Marked ${domain} as blocked (both direct and Tor failed)`);
+          crawlCount++;
+          return;
         }
       }
     }
@@ -355,8 +360,30 @@ async function crawlSite(queueItem) {
       netStats = crawlResult.netStats;
       usedTor = true;
 
+      // Check if Tor page is also a block page
+      const torBlockCheck = await detectBlockPage(page);
+      if (torBlockCheck.blocked) {
+        db.log('warn', `Tor also blocked for ${domain} after low-score retry — marking as blocked`);
+        db.updateSiteStatus(site_id, 'blocked');
+        db.clearSiteScores(site_id);
+        db.completeQueueItem(queueId);
+        crawlCount++;
+        return;
+      }
+
       metricResults = await runAllMetrics(page, requestUrls, netStats);
       scores = buildScores(metricResults);
+
+      // If Tor score is still suspiciously low, mark as blocked
+      if (scores.overall < SUSPICIOUS_SCORE_THRESHOLD) {
+        db.log('warn', `Tor score still low (${scores.overall}) for ${domain} — marking as blocked`);
+        db.updateSiteStatus(site_id, 'blocked');
+        db.clearSiteScores(site_id);
+        db.completeQueueItem(queueId);
+        crawlCount++;
+        return;
+      }
+
       db.log('info', `Tor rescore for ${domain}: overall=${scores.overall}`);
     }
 
