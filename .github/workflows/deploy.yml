@@ -29,10 +29,11 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             cd /opt/enshittification-tracker
-            npm install --production
+            npm install --omit=dev
             mkdir -p data public/screenshots
             # Install pm2 globally if not present
             which pm2 || npm install -g pm2
-            # Restart or start the app
-            pm2 describe enshittindex > /dev/null 2>&1 && pm2 restart enshittindex || pm2 start ecosystem.config.js
+            # Delete and re-start to pick up ecosystem.config.js changes
+            pm2 delete enshittindex 2>/dev/null || true
+            pm2 start ecosystem.config.js
             pm2 save

@@ -8,7 +8,7 @@ module.exports = {
       NODE_ENV: 'production',
       PORT: 3000,
       CHROMIUM_PATH: '/usr/bin/chromium-browser',
-      DB_PATH: '/opt/enshittifier/data/enshittindex.db',
+      DB_PATH: '/opt/enshittification-tracker/data/enshittindex.db',
     },
   }],
 };
