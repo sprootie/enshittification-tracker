@@ -8,6 +8,7 @@ const metricsAds = require('./metrics-ads');
 const metricsPaywalls = require('./metrics-paywalls');
 const metricsDark = require('./metrics-dark');
 const metricsBloat = require('./metrics-bloat');
+const bus = require('../events');
 
 const CHROMIUM_PATH = process.env.CHROMIUM_PATH || '/usr/bin/chromium-browser';
 const TOR_SOCKS_PROXY = process.env.TOR_PROXY || 'socks5://127.0.0.1:9050';
@@ -255,16 +256,29 @@ async function performCrawl(browserInstance, url, timeout) {
 }
 
 // ── Metric helpers ──────────────────────────────────────────────
-async function runAllMetrics(page, requestUrls, netStats) {
-  const [tracking, popups, ads, paywalls, dark, bloat] = await Promise.all([
-    metricsTracking.evaluate(page, requestUrls),
-    metricsPopups.evaluate(page, requestUrls),
-    metricsAds.evaluate(page, requestUrls),
-    metricsPaywalls.evaluate(page, requestUrls),
-    metricsDark.evaluate(page, requestUrls),
-    metricsBloat.evaluate(page, requestUrls, netStats),
-  ]);
-  return { tracking, popups, ads, paywalls, dark, bloat };
+async function runAllMetrics(page, requestUrls, netStats, domain) {
+  const results = {};
+  const collectors = [
+    ['tracking', () => metricsTracking.evaluate(page, requestUrls)],
+    ['popups', () => metricsPopups.evaluate(page, requestUrls)],
+    ['ads', () => metricsAds.evaluate(page, requestUrls)],
+    ['paywalls', () => metricsPaywalls.evaluate(page, requestUrls)],
+    ['dark', () => metricsDark.evaluate(page, requestUrls)],
+    ['bloat', () => metricsBloat.evaluate(page, requestUrls, netStats)],
+  ];
+
+  for (const [name, fn] of collectors) {
+    results[name] = await fn();
+    if (domain) {
+      bus.emit('crawl:metric', {
+        domain,
+        category: name,
+        score: results[name].score,
+      });
+    }
+  }
+
+  return results;
 }
 
 function buildScores(metricResults) {
@@ -287,6 +301,7 @@ async function crawlSite(queueItem) {
   db.startQueueItem(queueId);
   db.updateSiteStatus(site_id, 'crawling');
   db.log('info', `Crawling ${domain}`);
+  bus.emit('crawl:status', { domain, status: 'crawling', message: 'Loading page...' });
 
   let page = null;
   let requestUrls = [];
@@ -302,6 +317,7 @@ async function crawlSite(queueItem) {
     } catch (directErr) {
       // Direct navigation failed entirely — try Tor
       db.log('warn', `Direct crawl failed for ${domain}: ${directErr.message}, retrying via Tor`);
+      bus.emit('crawl:status', { domain, status: 'crawling', message: 'Direct blocked, retrying via Tor...' });
       await ensureTorBrowser();
       crawlResult = await performCrawl(torBrowser, url, TOR_CRAWL_TIMEOUT);
       usedTor = true;
@@ -316,6 +332,7 @@ async function crawlSite(queueItem) {
       const blockCheck = await detectBlockPage(page);
       if (blockCheck.blocked) {
         db.log('warn', `Block page detected for ${domain}: ${blockCheck.reason} — retrying via Tor`);
+        bus.emit('crawl:status', { domain, status: 'crawling', message: 'Block page detected, retrying via Tor...' });
         try { await page.close(); } catch {}
         page = null;
 
@@ -335,6 +352,7 @@ async function crawlSite(queueItem) {
           db.clearSiteScores(site_id);
           db.completeQueueItem(queueId);
           db.log('info', `Marked ${domain} as blocked (both direct and Tor failed)`);
+          bus.emit('crawl:blocked', { domain, reason: 'Blocked by both direct and Tor connections' });
           crawlCount++;
           return;
         }
@@ -342,7 +360,8 @@ async function crawlSite(queueItem) {
     }
 
     // ── Run metrics ──
-    let metricResults = await runAllMetrics(page, requestUrls, netStats);
+    bus.emit('crawl:status', { domain, status: 'scoring', message: 'Analyzing page...' });
+    let metricResults = await runAllMetrics(page, requestUrls, netStats, domain);
     let scores = buildScores(metricResults);
 
     // ── Low-score heuristic: if direct crawl scored suspiciously low, ──
@@ -367,11 +386,12 @@ async function crawlSite(queueItem) {
         db.updateSiteStatus(site_id, 'blocked');
         db.clearSiteScores(site_id);
         db.completeQueueItem(queueId);
+        bus.emit('crawl:blocked', { domain, reason: 'Blocked by both direct and Tor connections' });
         crawlCount++;
         return;
       }
 
-      metricResults = await runAllMetrics(page, requestUrls, netStats);
+      metricResults = await runAllMetrics(page, requestUrls, netStats, domain);
       scores = buildScores(metricResults);
 
       // If Tor score is still suspiciously low, mark as blocked
@@ -380,6 +400,7 @@ async function crawlSite(queueItem) {
         db.updateSiteStatus(site_id, 'blocked');
         db.clearSiteScores(site_id);
         db.completeQueueItem(queueId);
+        bus.emit('crawl:blocked', { domain, reason: 'Blocked by both direct and Tor connections' });
         crawlCount++;
         return;
       }
@@ -432,12 +453,14 @@ async function crawlSite(queueItem) {
     db.completeQueueItem(queueId);
     const via = usedTor ? ' (via Tor)' : '';
     db.log('info', `Completed ${domain}: overall=${scores.overall}${via}`);
+    bus.emit('crawl:complete', { domain, scores });
     crawlCount++;
 
   } catch (err) {
     db.failQueueItem(queueId, err.message);
     db.updateSiteStatus(site_id, 'error');
     db.log('error', `Failed ${domain}: ${err.message}`);
+    bus.emit('crawl:error', { domain, error: err.message });
   } finally {
     if (page) {
       try { await page.close(); } catch {}

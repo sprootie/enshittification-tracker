@@ -6,6 +6,7 @@ const db = require('./src/db');
 const auth = require('./src/auth');
 const crawler = require('./src/crawler/worker');
 const { runSafetyChecks } = require('./src/safety-check');
+const bus = require('./src/events');
 
 // Templates
 const homeTemplate = require('./src/templates/home');
@@ -352,6 +353,64 @@ const server = http.createServer(async (req, res) => {
           bloat: r.score_bloat,
         })),
       });
+    }
+
+    // ── SSE: Crawl events for a domain ──
+    if (pathname.startsWith('/api/site/') && pathname.endsWith('/events') && method === 'GET') {
+      const domain = decodeURIComponent(pathname.slice(10, -7));
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no', // disable nginx buffering
+      });
+
+      // Send current status immediately
+      const site = db.getSiteByDomain(domain);
+      if (site) {
+        res.write(`data: ${JSON.stringify({ type: 'status', domain, status: site.status })}\n\n`);
+      }
+
+      // Keep-alive ping every 30s
+      const keepAlive = setInterval(() => {
+        res.write(': ping\n\n');
+      }, 30000);
+
+      // Subscribe to events for this domain
+      const onStatus = (data) => {
+        if (data.domain === domain) res.write(`data: ${JSON.stringify({ type: 'status', ...data })}\n\n`);
+      };
+      const onMetric = (data) => {
+        if (data.domain === domain) res.write(`data: ${JSON.stringify({ type: 'metric', ...data })}\n\n`);
+      };
+      const onComplete = (data) => {
+        if (data.domain === domain) {
+          res.write(`data: ${JSON.stringify({ type: 'complete', ...data })}\n\n`);
+        }
+      };
+      const onBlocked = (data) => {
+        if (data.domain === domain) res.write(`data: ${JSON.stringify({ type: 'blocked', ...data })}\n\n`);
+      };
+      const onError = (data) => {
+        if (data.domain === domain) res.write(`data: ${JSON.stringify({ type: 'error', ...data })}\n\n`);
+      };
+
+      bus.on('crawl:status', onStatus);
+      bus.on('crawl:metric', onMetric);
+      bus.on('crawl:complete', onComplete);
+      bus.on('crawl:blocked', onBlocked);
+      bus.on('crawl:error', onError);
+
+      // Clean up on disconnect
+      req.on('close', () => {
+        clearInterval(keepAlive);
+        bus.off('crawl:status', onStatus);
+        bus.off('crawl:metric', onMetric);
+        bus.off('crawl:complete', onComplete);
+        bus.off('crawl:blocked', onBlocked);
+        bus.off('crawl:error', onError);
+      });
+      return;
     }
 
     // ── ADMIN: Login ──
