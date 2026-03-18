@@ -69,6 +69,14 @@ db.exec(`
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
+  CREATE TABLE IF NOT EXISTS submissions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    site_id INTEGER NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+    ip TEXT NOT NULL,
+    user_agent TEXT,
+    submitted_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
   CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -103,6 +111,9 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_log_created ON crawl_log(created_at);
   CREATE INDEX IF NOT EXISTS idx_results_site_crawled ON crawl_results(site_id, crawled_at);
   CREATE INDEX IF NOT EXISTS idx_safety_site ON safety_checks(site_id);
+  CREATE INDEX IF NOT EXISTS idx_submissions_ip ON submissions(ip);
+  CREATE INDEX IF NOT EXISTS idx_submissions_ip_time ON submissions(ip, submitted_at);
+  CREATE INDEX IF NOT EXISTS idx_submissions_site ON submissions(site_id);
 `);
 
 // ── Default settings ────────────────────────────────────────────
@@ -259,6 +270,31 @@ const stmts = {
      AND sc.id = (SELECT MAX(id) FROM safety_checks WHERE site_id = s.id)
      ORDER BY sc.checked_at DESC LIMIT ?`
   ),
+
+  // Submissions
+  insertSubmission: db.prepare(
+    'INSERT INTO submissions (site_id, ip, user_agent) VALUES (?, ?, ?)'
+  ),
+  countRecentSubmissionsByIp: db.prepare(
+    `SELECT COUNT(*) as count FROM submissions
+     WHERE ip = ? AND submitted_at > datetime('now', '-1 hour')`
+  ),
+  getSubmissionsForSite: db.prepare(
+    'SELECT * FROM submissions WHERE site_id = ? ORDER BY submitted_at DESC LIMIT ?'
+  ),
+  getRecentSubmissions: db.prepare(
+    `SELECT sub.*, s.domain FROM submissions sub
+     JOIN sites s ON s.id = sub.site_id
+     ORDER BY sub.submitted_at DESC LIMIT ?`
+  ),
+  getTopSubmitters: db.prepare(
+    `SELECT ip, COUNT(*) as submission_count,
+       MAX(submitted_at) as last_submission,
+       COUNT(DISTINCT site_id) as unique_sites
+     FROM submissions
+     WHERE submitted_at > datetime('now', '-24 hours')
+     GROUP BY ip ORDER BY submission_count DESC LIMIT ?`
+  ),
 };
 
 // ── Public API ──────────────────────────────────────────────────
@@ -410,5 +446,22 @@ module.exports = {
   },
   getDisallowedSites(limit = 50) {
     return stmts.getDisallowedSites.all(limit);
+  },
+
+  // Submissions
+  recordSubmission(siteId, ip, userAgent) {
+    return stmts.insertSubmission.run(siteId, ip, userAgent || null);
+  },
+  countRecentSubmissionsByIp(ip) {
+    return stmts.countRecentSubmissionsByIp.get(ip).count;
+  },
+  getSubmissionsForSite(siteId, limit = 20) {
+    return stmts.getSubmissionsForSite.all(siteId, limit);
+  },
+  getRecentSubmissions(limit = 50) {
+    return stmts.getRecentSubmissions.all(limit);
+  },
+  getTopSubmitters(limit = 20) {
+    return stmts.getTopSubmitters.all(limit);
   },
 };

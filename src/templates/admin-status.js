@@ -1,6 +1,6 @@
 const { layout, escHtml } = require('./layout');
 
-function render({ queueStats, activeQueue, logs, memoryUsage, disallowedSites }) {
+function render({ queueStats, activeQueue, logs, memoryUsage, disallowedSites, recentSubmissions, topSubmitters }) {
   const statsMap = {};
   queueStats.forEach(s => { statsMap[s.status] = s.count; });
 
@@ -66,6 +66,35 @@ function render({ queueStats, activeQueue, logs, memoryUsage, disallowedSites })
               <td>${escHtml(s.cloudflare_detail || '—')}</td>
               <td>${escHtml(s.google_detail || '—')}</td>
               <td>${escHtml(s.virustotal_detail || '—')}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>` : ''}
+
+      ${topSubmitters && topSubmitters.length > 0 ? `<div class="card">
+        <h2>Top Submitters (24h)</h2>
+        <table class="site-table">
+          <thead><tr><th>IP Address</th><th>Submissions</th><th>Unique Sites</th><th>Last Submission</th></tr></thead>
+          <tbody>
+            ${topSubmitters.map(s => `<tr>
+              <td><code>${escHtml(s.ip)}</code></td>
+              <td>${s.submission_count}</td>
+              <td>${s.unique_sites}</td>
+              <td>${escHtml(s.last_submission)}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>` : ''}
+
+      ${recentSubmissions && recentSubmissions.length > 0 ? `<div class="card">
+        <h2>Recent Submissions</h2>
+        <table class="site-table">
+          <thead><tr><th>Domain</th><th>IP</th><th>Submitted</th></tr></thead>
+          <tbody>
+            ${recentSubmissions.map(s => `<tr>
+              <td><a href="/site/${escHtml(s.domain)}">${escHtml(s.domain)}</a></td>
+              <td><code>${escHtml(s.ip)}</code></td>
+              <td>${escHtml(s.submitted_at)}</td>
             </tr>`).join('')}
           </tbody>
         </table>

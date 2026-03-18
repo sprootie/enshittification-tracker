@@ -134,6 +134,7 @@ a:hover { text-decoration: underline; }
 .full-table { font-size: 0.85rem; }
 .full-table td { padding: 6px 10px; }
 .empty { color: #555; font-style: italic; text-align: center; padding: 20px; }
+.ua-cell { font-size: 0.7rem; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #888; }
 
 /* ── Blocked Badge ────────────────────────────────────────── */
 .blocked-badge {

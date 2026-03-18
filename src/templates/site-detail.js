@@ -19,7 +19,7 @@ function scoreBar(label, score, maxScore = 10) {
   </div>`;
 }
 
-function render({ site, results, isAdmin = false, safetyCheck = null }) {
+function render({ site, results, isAdmin = false, safetyCheck = null, submissions = null }) {
   const s = site;
   const latestResult = results[0];
   const screenshotUrl = latestResult?.screenshot_path
@@ -130,6 +130,20 @@ function render({ site, results, isAdmin = false, safetyCheck = null }) {
             <td class="${safetyCheck.virustotal_safe ? 'safe-pass' : 'safe-fail'}">${safetyCheck.virustotal_safe ? 'Pass' : 'FAIL'}</td>
             <td>${escHtml(safetyCheck.virustotal_detail)}</td>
           </tr>
+        </tbody>
+      </table>
+    </section>` : ''}
+
+    ${isAdmin && submissions && submissions.length > 0 ? `<section class="card">
+      <h2>Submission History (Admin Only)</h2>
+      <table class="site-table">
+        <thead><tr><th>IP Address</th><th>User Agent</th><th>Submitted</th></tr></thead>
+        <tbody>
+          ${submissions.map(sub => `<tr>
+            <td><code>${escHtml(sub.ip)}</code></td>
+            <td class="ua-cell">${escHtml(sub.user_agent || '—')}</td>
+            <td>${escHtml(sub.submitted_at)}</td>
+          </tr>`).join('')}
         </tbody>
       </table>
     </section>` : ''}

@@ -50,27 +50,12 @@ function extractDomain(url) {
   }
 }
 
-// ── Rate Limiter (submissions: 5/hr per IP) ─────────────────────
-const submitLimiter = new Map();
+// ── Rate Limiter (submissions: 5/hr per IP, DB-backed) ──────────
+const SUBMIT_RATE_LIMIT = 5; // max submissions per hour per IP
 
 function isSubmitLimited(ip) {
-  const now = Date.now();
-  const windowMs = 3600000; // 1 hour
-  if (!submitLimiter.has(ip)) submitLimiter.set(ip, []);
-  const timestamps = submitLimiter.get(ip).filter(t => now - t < windowMs);
-  timestamps.push(now);
-  submitLimiter.set(ip, timestamps);
-  return timestamps.length > 5;
+  return db.countRecentSubmissionsByIp(ip) >= SUBMIT_RATE_LIMIT;
 }
-
-setInterval(() => {
-  const now = Date.now();
-  for (const [ip, ts] of submitLimiter) {
-    const valid = ts.filter(t => now - t < 3600000);
-    if (valid.length === 0) submitLimiter.delete(ip);
-    else submitLimiter.set(ip, valid);
-  }
-}, 300000);
 
 // ── Static File Serving ─────────────────────────────────────────
 const MIME_TYPES = {
@@ -227,6 +212,10 @@ const server = http.createServer(async (req, res) => {
         }
       }
 
+      // Record submission with IP and User-Agent
+      const userAgent = req.headers['user-agent'] || null;
+      db.recordSubmission(site.id, clientIp, userAgent);
+
       db.enqueue(site.id, 1); // priority 1 for user submissions
       db.log('info', `URL submitted: ${domain} by ${clientIp}`);
     }
@@ -241,7 +230,8 @@ const server = http.createServer(async (req, res) => {
       const results = db.getResultsForSite(site.id, 50);
       const isAdmin = auth.isAuthenticated(req);
       const safetyCheck = isAdmin ? db.getLatestSafetyCheck(site.id) : null;
-      return sendHtml(res, siteDetailTemplate.render({ site, results, isAdmin, safetyCheck }));
+      const submissions = isAdmin ? db.getSubmissionsForSite(site.id, 20) : null;
+      return sendHtml(res, siteDetailTemplate.render({ site, results, isAdmin, safetyCheck, submissions }));
     }
 
     // ── SEARCH ──
@@ -347,7 +337,9 @@ const server = http.createServer(async (req, res) => {
           heapTotal: Math.round(mem.heapTotal / 1024 / 1024),
         };
         const disallowedSites = db.getDisallowedSites(20);
-        return sendHtml(res, adminStatusTemplate.render({ queueStats, activeQueue, logs, memoryUsage, disallowedSites }));
+        const recentSubmissions = db.getRecentSubmissions(30);
+        const topSubmitters = db.getTopSubmitters(15);
+        return sendHtml(res, adminStatusTemplate.render({ queueStats, activeQueue, logs, memoryUsage, disallowedSites, recentSubmissions, topSubmitters }));
       }
 
       // ── ADMIN: Settings ──
