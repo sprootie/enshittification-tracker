@@ -1,4 +1,5 @@
 const net = require('net');
+const dns = require('dns');
 const { SocksClient } = require('socks');
 
 // Creates a local unauthenticated SOCKS5 proxy that forwards
@@ -66,6 +67,15 @@ function start(upstreamProxyUrl) {
           }
 
           try {
+            // Resolve hostname to IP locally (PIA requires pre-resolved IPs)
+            let resolvedHost = destHost;
+            if (net.isIP(destHost) === 0) {
+              try {
+                const addrs = await dns.promises.resolve4(destHost);
+                if (addrs.length > 0) resolvedHost = addrs[0];
+              } catch {}
+            }
+
             // Connect through the upstream authenticated SOCKS5 proxy
             const { socket: upstreamSocket } = await SocksClient.createConnection({
               proxy: {
@@ -76,7 +86,7 @@ function start(upstreamProxyUrl) {
                 password: upstream.password,
               },
               command: 'connect',
-              destination: { host: destHost, port: destPort },
+              destination: { host: resolvedHost, port: destPort },
               timeout: 15000,
             });
 
