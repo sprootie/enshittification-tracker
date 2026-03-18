@@ -31,7 +31,7 @@ function render({ topSites, worstSites, latestCrawled }) {
       <h1>How enshittified is your favorite website?</h1>
       <p>We crawl websites and score them across 6 categories of enshittification: tracking, popups, ads, paywalls, dark patterns, and bloat.</p>
       <form class="submit-form" action="/submit" method="POST">
-        <input type="url" name="url" placeholder="https://example.com" required autocomplete="url">
+        <input type="text" name="url" placeholder="example.com" required autocomplete="url">
         <button type="submit">Analyze</button>
       </form>
       <form class="search-inline" action="/search" method="GET">
