@@ -219,6 +219,7 @@ const server = http.createServer(async (req, res) => {
 
       db.enqueue(site.id, 1); // priority 1 for user submissions
       db.log('info', `URL submitted: ${domain} by ${clientIp}`);
+      return redirect(res, `/site/${encodeURIComponent(domain)}`);
     }
 
     // ── SITE DETAIL ──
