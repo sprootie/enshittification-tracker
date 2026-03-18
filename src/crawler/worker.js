@@ -123,8 +123,8 @@ async function detectBlockPage(page) {
 
     // Very few DOM nodes — real sites have hundreds, block pages have < 50
     const nodeCount = document.querySelectorAll('*').length;
-    if (nodeCount < 50 && bodyLen < 500) {
-      return { blocked: true, reason: `Minimal page (${nodeCount} nodes, ${bodyLen} chars)` };
+    if (nodeCount < 50) {
+      return { blocked: true, reason: `Minimal page (${nodeCount} DOM nodes)` };
     }
 
     // Check body text and title against block patterns
