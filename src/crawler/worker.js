@@ -290,31 +290,38 @@ async function performCrawl(browserInstance, url, timeout, userAgent) {
     // Auto-accept cookie/consent banners so trackers and ads load
     // as they would for a real user who clicks "Accept All"
     await page.evaluate(() => {
+      // 1. Programmatic consent APIs (most reliable)
+      // Ketch (used by Forbes, etc.)
+      if (typeof ketch === 'function') {
+        try { ketch('consent', 'setConsent', { purposes: { analytics: true, advertising: true, functional: true } }); } catch {}
+      }
+      // OneTrust
+      if (typeof OnetrustActiveGroups !== 'undefined' || typeof OneTrust !== 'undefined') {
+        try { OneTrust.AllowAll(); } catch {}
+      }
+      // Cookiebot
+      if (typeof Cookiebot !== 'undefined') {
+        try { Cookiebot.submitCustomConsent(true, true, true); } catch {}
+      }
+
+      // 2. Click-based fallback for other consent systems
       const acceptSelectors = [
-        // Generic accept buttons
+        '#onetrust-accept-btn-handler',
+        '#CybotCookiebotDialogBodyLevelButtonLevelOptinAllowAll',
         'button[id*="accept"]', 'button[class*="accept"]',
         'a[id*="accept"]', 'a[class*="accept"]',
         '[data-testid*="accept"]', '[aria-label*="accept"]',
-        // OneTrust
-        '#onetrust-accept-btn-handler',
-        // Cookiebot
-        '#CybotCookiebotDialogBodyLevelButtonLevelOptinAllowAll',
-        // Generic consent
         'button[class*="consent"]', 'button[class*="agree"]',
         '[class*="cookie"] button', '[class*="consent"] button',
-        // Common button text patterns
         'button[class*="allow"]',
       ];
       for (const sel of acceptSelectors) {
         try {
           const btn = document.querySelector(sel);
-          if (btn && btn.offsetParent !== null) {
-            btn.click();
-            return;
-          }
+          if (btn && btn.offsetParent !== null) { btn.click(); return; }
         } catch {}
       }
-      // Fallback: find buttons by text content
+      // Text-based button search
       const buttons = document.querySelectorAll('button, a[role="button"]');
       for (const btn of buttons) {
         const text = (btn.textContent || '').trim().toLowerCase();
@@ -328,7 +335,7 @@ async function performCrawl(browserInstance, url, timeout, userAgent) {
     });
 
     // Wait for consent-gated scripts to load after accepting
-    await page.evaluate(() => new Promise(r => setTimeout(r, 3000)));
+    await page.evaluate(() => new Promise(r => setTimeout(r, 4000)));
 
     return { page, requestUrls, netStats };
   } catch (err) {
