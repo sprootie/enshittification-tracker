@@ -9,6 +9,7 @@ const metricsPaywalls = require('./metrics-paywalls');
 const metricsDark = require('./metrics-dark');
 const metricsBloat = require('./metrics-bloat');
 const bus = require('../events');
+const piaForwarder = require('../proxy-forwarder');
 
 const CHROMIUM_PATH = process.env.CHROMIUM_PATH || '/usr/bin/chromium-browser';
 const PIA_PROXY = process.env.PIA_PROXY || '';
@@ -187,9 +188,16 @@ async function ensureDirectBrowser() {
 
 async function ensurePiaBrowser() {
   if (!PIA_PROXY) return false;
+  // Start local forwarder if needed (handles SOCKS5 auth that Chromium can't)
+  let localProxy = piaForwarder.getLocalProxy();
+  if (!localProxy) {
+    const port = await piaForwarder.start(PIA_PROXY);
+    localProxy = `socks5://127.0.0.1:${port}`;
+    db.log('info', `PIA proxy forwarder started on port ${port}`);
+  }
   if (!piaBrowser || !piaBrowser.isConnected()) {
     if (piaBrowser) { try { await piaBrowser.close(); } catch {} }
-    piaBrowser = await launchBrowser(PIA_PROXY);
+    piaBrowser = await launchBrowser(localProxy);
     piaBrowser.on('disconnected', () => {
       piaBrowser = null;
       db.log('warn', 'PIA browser disconnected');
@@ -585,6 +593,7 @@ function stop() {
   if (browser) browser.close().catch(() => {});
   if (piaBrowser) piaBrowser.close().catch(() => {});
   if (torBrowser) torBrowser.close().catch(() => {});
+  piaForwarder.stop();
   db.log('info', 'Crawler worker stopped');
 }
 
