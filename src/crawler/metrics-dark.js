@@ -95,12 +95,14 @@ async function evaluate(page, requestUrls) {
     let disguisedAds = 0;
     const sponsoredEls = document.querySelectorAll(
       '[data-promoted], [data-sponsored], [data-is-sponsored="true"], ' +
-      '[class*="sponsored"], [class*="promoted"]'
+      '[class*="sponsored"], [class*="promoted"], ' +
+      '[class*="brandvoice"], [class*="BrandVoice"], [class*="AdVoice"]'
     );
     sponsoredEls.forEach(el => {
       // Check if the sponsored label is tiny/hidden
       const label = el.querySelector(
-        '[class*="sponsor"], [class*="promot"], [class*="paid"], [class*="ad-label"]'
+        '[class*="sponsor"], [class*="promot"], [class*="paid"], [class*="ad-label"], ' +
+        '[class*="brandvoice"], [class*="BrandVoice"]'
       );
       if (label) {
         const style = window.getComputedStyle(label);
@@ -114,7 +116,8 @@ async function evaluate(page, requestUrls) {
       // Sponsored item with no visible label at all
       const allText = (el.textContent || '').toLowerCase();
       if (!allText.includes('sponsored') && !allText.includes('promoted') &&
-          !allText.includes('paid') && !allText.includes('ad')) {
+          !allText.includes('paid') && !allText.includes('ad') &&
+          !allText.includes('brandvoice') && !allText.includes('brand voice')) {
         disguisedAds++;
       }
     });
@@ -151,7 +154,9 @@ async function evaluate(page, requestUrls) {
       const text = (el.textContent || '').trim().toLowerCase();
       if (text.length > 40) continue;
       if (text === 'sponsored' || text === 'promoted' || text === 'ad' ||
-          text === 'paid content' || text === 'advertisement') {
+          text === 'paid content' || text === 'advertisement' ||
+          text === 'paid program' || text === 'brandvoice' ||
+          text.startsWith('| paid') || text.startsWith('paid program')) {
         const style = window.getComputedStyle(el);
         const fontSize = parseFloat(style.fontSize);
         const color = style.color;

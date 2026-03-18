@@ -287,8 +287,48 @@ async function performCrawl(browserInstance, url, timeout, userAgent) {
     });
     netStats.loadTime = Date.now() - startTime;
 
-    // Wait for lazy content
-    await page.evaluate(() => new Promise(r => setTimeout(r, 2000)));
+    // Auto-accept cookie/consent banners so trackers and ads load
+    // as they would for a real user who clicks "Accept All"
+    await page.evaluate(() => {
+      const acceptSelectors = [
+        // Generic accept buttons
+        'button[id*="accept"]', 'button[class*="accept"]',
+        'a[id*="accept"]', 'a[class*="accept"]',
+        '[data-testid*="accept"]', '[aria-label*="accept"]',
+        // OneTrust
+        '#onetrust-accept-btn-handler',
+        // Cookiebot
+        '#CybotCookiebotDialogBodyLevelButtonLevelOptinAllowAll',
+        // Generic consent
+        'button[class*="consent"]', 'button[class*="agree"]',
+        '[class*="cookie"] button', '[class*="consent"] button',
+        // Common button text patterns
+        'button[class*="allow"]',
+      ];
+      for (const sel of acceptSelectors) {
+        try {
+          const btn = document.querySelector(sel);
+          if (btn && btn.offsetParent !== null) {
+            btn.click();
+            return;
+          }
+        } catch {}
+      }
+      // Fallback: find buttons by text content
+      const buttons = document.querySelectorAll('button, a[role="button"]');
+      for (const btn of buttons) {
+        const text = (btn.textContent || '').trim().toLowerCase();
+        if ((text.includes('accept all') || text.includes('accept cookies') ||
+             text.includes('allow all') || text.includes('i agree') ||
+             text === 'accept' || text === 'agree') && btn.offsetParent !== null) {
+          btn.click();
+          return;
+        }
+      }
+    });
+
+    // Wait for consent-gated scripts to load after accepting
+    await page.evaluate(() => new Promise(r => setTimeout(r, 3000)));
 
     return { page, requestUrls, netStats };
   } catch (err) {

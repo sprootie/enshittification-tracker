@@ -101,6 +101,9 @@ async function evaluate(page, requestUrls) {
       // Platform-specific
       '[class*="paidContent"]', '[class*="advertorial"]',
       '[class*="brand-content"]', '[class*="commercial-content"]',
+      // Forbes BrandVoice / paid programs
+      '[class*="brandvoice"]', '[class*="BrandVoice"]',
+      '[class*="advVoice"]', '[class*="AdVoice"]',
     ];
     let sponsoredElements = 0;
     sponsoredSelectors.forEach(sel => {
@@ -114,6 +117,8 @@ async function evaluate(page, requestUrls) {
       'sponsored', 'promoted', 'paid post', 'partner content',
       'advertorial', 'branded content', 'paid content', 'ad content',
       'paid partnership', 'presented by', 'brought to you by',
+      'brandvoice', 'brand voice', 'paid program',
+      'contributor content', 'content by',
     ];
     for (const el of allElements) {
       // Only check small text elements likely to be labels
