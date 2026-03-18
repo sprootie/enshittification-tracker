@@ -1,0 +1,548 @@
+/* ── The Enshittifier — Injected Styles ──────────────────────── */
+/* All classes prefixed with .enshit- to avoid collisions */
+
+.enshit-control-bar {
+  position: fixed !important;
+  top: 0 !important; left: 0 !important; right: 0 !important;
+  z-index: 2147483647 !important;
+  background: #1a1a2e !important;
+  color: #fff !important;
+  padding: 10px 20px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 14px !important;
+  flex-wrap: wrap !important;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4) !important;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+  font-size: 14px !important;
+  box-sizing: border-box !important;
+  height: auto !important;
+  line-height: 1.4 !important;
+}
+.enshit-control-bar * { box-sizing: border-box !important; }
+.enshit-control-bar h1 {
+  font-size: 1rem !important;
+  font-weight: 800 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  white-space: nowrap !important;
+  color: #fff !important;
+}
+.enshit-control-bar h1 span { color: #e63946 !important; }
+.enshit-slider-wrap {
+  flex: 1 !important;
+  min-width: 160px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+.enshit-slider-wrap label {
+  font-size: 0.75rem !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+  opacity: 0.7 !important;
+  white-space: nowrap !important;
+  color: #fff !important;
+}
+.enshit-slider {
+  flex: 1 !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  height: 6px !important;
+  border-radius: 3px !important;
+  background: linear-gradient(90deg, #2d6a4f, #e9c46a, #e76f51, #e63946) !important;
+  outline: none !important;
+  cursor: pointer !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+.enshit-slider::-webkit-slider-thumb {
+  -webkit-appearance: none !important;
+  width: 20px !important; height: 20px !important;
+  border-radius: 50% !important;
+  background: #fff !important;
+  border: 3px solid #e63946 !important;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3) !important;
+  cursor: grab !important;
+}
+.enshit-slider::-moz-range-thumb {
+  width: 20px !important; height: 20px !important;
+  border-radius: 50% !important;
+  background: #fff !important;
+  border: 3px solid #e63946 !important;
+  cursor: grab !important;
+}
+.enshit-level {
+  font-size: 1.2rem !important;
+  font-weight: 900 !important;
+  min-width: 45px !important;
+  text-align: center !important;
+  padding: 3px 10px !important;
+  border-radius: 5px !important;
+  color: #fff !important;
+  transition: background 0.3s !important;
+}
+.enshit-share-btn {
+  background: transparent !important;
+  border: 1px solid rgba(255,255,255,0.3) !important;
+  color: #fff !important;
+  padding: 5px 12px !important;
+  border-radius: 5px !important;
+  cursor: pointer !important;
+  font-size: 0.8rem !important;
+  white-space: nowrap !important;
+  font-family: inherit !important;
+  transition: all 0.2s !important;
+}
+.enshit-share-btn:hover {
+  background: rgba(255,255,255,0.1) !important;
+  border-color: #fff !important;
+}
+.enshit-level-green { background: #2d6a4f !important; }
+.enshit-level-yellow { background: #e9c46a !important; color: #1a1a2e !important; }
+.enshit-level-orange { background: #e76f51 !important; }
+.enshit-level-red { background: #e63946 !important; }
+
+/* Push down the page content so it's not hidden behind the control bar */
+.enshit-body-pushed { padding-top: 52px !important; }
+
+/* ── Cookie Banner ── */
+.enshit-cookie {
+  display: none;
+  position: fixed !important;
+  bottom: 0 !important; left: 0 !important; right: 0 !important;
+  background: #1a1a2e !important;
+  color: #fff !important;
+  padding: 20px 24px !important;
+  z-index: 2147483640 !important;
+  box-shadow: 0 -4px 20px rgba(0,0,0,0.3) !important;
+  font-family: -apple-system, sans-serif !important;
+  font-size: 14px !important;
+}
+.enshit-cookie p { font-size: 0.85rem !important; margin-bottom: 12px !important; line-height: 1.5 !important; color: #fff !important; max-width: 780px !important; margin-left: auto !important; margin-right: auto !important; }
+.enshit-cookie .enshit-btn-row { display: flex !important; gap: 10px !important; flex-wrap: wrap !important; max-width: 780px !important; margin: 0 auto !important; }
+.enshit-cookie .enshit-btn-accept {
+  background: #e63946 !important; color: #fff !important; border: none !important;
+  padding: 10px 28px !important; border-radius: 6px !important; font-weight: 700 !important;
+  cursor: pointer !important; font-size: 0.95rem !important; font-family: inherit !important;
+}
+.enshit-cookie .enshit-btn-manage {
+  background: transparent !important; color: rgba(255,255,255,0.5) !important;
+  border: 1px solid rgba(255,255,255,0.2) !important; padding: 10px 16px !important;
+  border-radius: 6px !important; font-size: 0.7rem !important; cursor: pointer !important;
+  font-family: inherit !important;
+}
+
+/* ── Newsletter Popup ── */
+.enshit-overlay-bg {
+  display: none;
+  position: fixed !important; inset: 0 !important;
+  background: rgba(0,0,0,0.6) !important;
+  z-index: 2147483641 !important;
+}
+.enshit-newsletter {
+  display: none;
+  position: fixed !important; top: 50% !important; left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  background: #fff !important; border-radius: 12px !important; padding: 36px !important;
+  z-index: 2147483642 !important;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.4) !important;
+  text-align: center !important; max-width: 400px !important; width: 90% !important;
+  font-family: -apple-system, sans-serif !important;
+}
+.enshit-newsletter h3 { font-size: 1.4rem !important; margin-bottom: 8px !important; color: #1a1a2e !important; }
+.enshit-newsletter p { font-size: 0.9rem !important; color: #6c757d !important; margin-bottom: 18px !important; }
+.enshit-newsletter input {
+  width: 100% !important; padding: 12px !important; border: 2px solid #dee2e6 !important;
+  border-radius: 8px !important; font-size: 1rem !important; margin-bottom: 12px !important;
+  box-sizing: border-box !important;
+}
+.enshit-newsletter .enshit-btn-sub {
+  width: 100% !important; background: #e63946 !important; color: #fff !important;
+  border: none !important; padding: 12px !important; border-radius: 8px !important;
+  font-weight: 700 !important; font-size: 1rem !important; cursor: pointer !important;
+  font-family: inherit !important;
+}
+.enshit-newsletter .enshit-btn-dismiss {
+  background: none !important; border: none !important; color: #adb5bd !important;
+  font-size: 0.7rem !important; margin-top: 12px !important; cursor: pointer !important;
+  font-family: inherit !important;
+}
+
+/* ── Inline Ads ── */
+.enshit-inline-ad {
+  display: none;
+  background: #fff !important;
+  border: 2px solid #dee2e6 !important;
+  border-radius: 10px !important;
+  padding: 22px !important;
+  margin: 24px 0 !important;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.1) !important;
+  font-family: -apple-system, sans-serif !important;
+  position: relative !important;
+  z-index: 10 !important;
+  clear: both !important;
+}
+.enshit-inline-ad .enshit-ad-label {
+  font-size: 0.65rem !important; text-transform: uppercase !important;
+  letter-spacing: 0.1em !important; color: #adb5bd !important; margin-bottom: 10px !important;
+}
+.enshit-inline-ad .enshit-ad-row {
+  display: flex !important; gap: 14px !important; align-items: flex-start !important;
+  flex-wrap: wrap !important; overflow: hidden !important;
+}
+.enshit-inline-ad .enshit-ad-img {
+  width: 130px !important; height: 130px !important;
+  border-radius: 8px !important; flex-shrink: 0 !important;
+}
+.enshit-inline-ad .enshit-ad-row > div {
+  flex: 1 !important; min-width: 120px !important; overflow-wrap: break-word !important;
+  word-break: break-word !important;
+}
+.enshit-inline-ad h4 { font-size: 1.1rem !important; margin-bottom: 4px !important; font-weight: 800 !important; color: #1a1a2e !important; }
+.enshit-inline-ad p { font-size: 0.85rem !important; color: #6c757d !important; margin: 0 !important; line-height: 1.5 !important; }
+.enshit-inline-ad .enshit-ad-cta {
+  display: inline-block !important; margin-top: 8px !important;
+  font-size: 0.85rem !important; color: #fff !important;
+  background: #e63946 !important; padding: 7px 16px !important;
+  border-radius: 5px !important; text-decoration: none !important;
+  font-weight: 700 !important; cursor: pointer !important;
+}
+.enshit-inline-ad.enshit-ad-banner {
+  background: linear-gradient(135deg, #1a1a2e, #2d2d5e) !important;
+  border: none !important; text-align: center !important; padding: 26px 20px !important;
+}
+.enshit-inline-ad.enshit-ad-banner .enshit-ad-row {
+  flex-direction: column !important; align-items: center !important;
+}
+.enshit-inline-ad.enshit-ad-banner .enshit-ad-img { width: 100% !important; height: 60px !important; }
+.enshit-inline-ad.enshit-ad-banner h4 { color: #fff !important; font-size: 1.2rem !important; }
+.enshit-inline-ad.enshit-ad-banner p { color: rgba(255,255,255,0.7) !important; }
+.enshit-inline-ad.enshit-ad-banner .enshit-ad-label { color: rgba(255,255,255,0.3) !important; }
+
+/* ── Signup Wall ── */
+.enshit-signup-wall {
+  display: none;
+  position: fixed !important;
+  bottom: 0 !important; left: 0 !important; right: 0 !important;
+  height: 55vh !important;
+  background: linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,0.95) 30%, #fff 50%) !important;
+  z-index: 2147483634 !important;
+  text-align: center !important;
+  padding-top: 120px !important;
+  font-family: -apple-system, sans-serif !important;
+}
+.enshit-signup-wall .enshit-wall-box {
+  background: #fff !important; border: 2px solid #dee2e6 !important;
+  border-radius: 12px !important; padding: 32px !important;
+  max-width: 460px !important; margin: 0 auto !important;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.1) !important;
+}
+.enshit-signup-wall h3 { font-size: 1.3rem !important; margin-bottom: 8px !important; color: #1a1a2e !important; }
+.enshit-signup-wall p { font-size: 0.9rem !important; color: #6c757d !important; margin-bottom: 16px !important; }
+.enshit-signup-wall .enshit-btn-wall {
+  background: #e63946 !important; color: #fff !important; border: none !important;
+  padding: 12px 32px !important; border-radius: 8px !important;
+  font-weight: 700 !important; font-size: 1rem !important; cursor: pointer !important;
+  font-family: inherit !important;
+}
+.enshit-signup-wall .enshit-btn-wall-dismiss {
+  display: block !important; margin: 12px auto 0 !important;
+  background: none !important; border: none !important;
+  font-size: 0.65rem !important; color: #ced4da !important; cursor: pointer !important;
+  font-family: inherit !important;
+}
+
+/* ── Floating Video ── */
+.enshit-video {
+  display: none;
+  position: fixed !important; top: 62px !important; right: 20px !important;
+  width: 560px !important; height: 316px !important;
+  background: #000 !important; border-radius: 8px !important;
+  z-index: 2147483636 !important;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.3) !important;
+  overflow: hidden !important;
+}
+.enshit-video .enshit-fv-iframe {
+  position: absolute !important; top: 0 !important; left: 0 !important;
+  width: 100% !important; height: 100% !important; border: none !important;
+}
+.enshit-video .enshit-fv-label {
+  position: absolute !important; top: 8px !important; left: 8px !important;
+  background: #e63946 !important; color: #fff !important;
+  font-size: 0.55rem !important; padding: 2px 8px !important;
+  border-radius: 4px !important; font-weight: 700 !important;
+  text-transform: uppercase !important; font-family: -apple-system, sans-serif !important;
+}
+.enshit-video .enshit-fv-title {
+  position: absolute !important; bottom: 0 !important; left: 0 !important; right: 0 !important;
+  background: linear-gradient(transparent, rgba(0,0,0,0.8)) !important;
+  color: #fff !important; padding: 20px 10px 10px !important;
+  font-size: 0.7rem !important; font-weight: 600 !important;
+  font-family: -apple-system, sans-serif !important;
+}
+.enshit-video .enshit-fv-close {
+  position: absolute !important; top: 6px !important; right: 8px !important;
+  background: rgba(0,0,0,0.6) !important; color: #fff !important;
+  border: none !important; width: 22px !important; height: 22px !important;
+  border-radius: 50% !important; font-size: 0.7rem !important;
+  cursor: pointer !important; display: flex !important;
+  align-items: center !important; justify-content: center !important;
+}
+.enshit-video .enshit-fv-play {
+  position: absolute !important; top: 50% !important; left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  width: 44px !important; height: 44px !important;
+  background: rgba(255,255,255,0.9) !important; border-radius: 50% !important;
+  display: flex !important; align-items: center !important; justify-content: center !important;
+}
+.enshit-video .enshit-fv-play::after {
+  content: '' !important; display: block !important;
+  width: 0 !important; height: 0 !important; border-style: solid !important;
+  border-width: 9px 0 9px 16px !important;
+  border-color: transparent transparent transparent #e63946 !important;
+  margin-left: 3px !important;
+}
+
+/* ── Push Notification ── */
+.enshit-push {
+  display: none;
+  position: fixed !important; top: 62px !important; left: 50% !important;
+  transform: translateX(-50%) !important;
+  background: #fff !important; border-radius: 10px !important;
+  padding: 14px 18px !important; z-index: 2147483643 !important;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.2) !important;
+  align-items: center !important; gap: 12px !important;
+  max-width: 400px !important; width: 90% !important;
+  border: 1px solid #dee2e6 !important;
+  font-family: -apple-system, sans-serif !important;
+}
+.enshit-push .enshit-pn-icon {
+  width: 34px !important; height: 34px !important;
+  background: #dee2e6 !important; border-radius: 8px !important;
+  flex-shrink: 0 !important; display: flex !important;
+  align-items: center !important; justify-content: center !important;
+  font-size: 1.1rem !important;
+}
+.enshit-push .enshit-pn-text { flex: 1 !important; }
+.enshit-push .enshit-pn-text p { font-size: 0.82rem !important; margin: 0 !important; font-weight: 600 !important; color: #1a1a2e !important; }
+.enshit-push .enshit-pn-text small { font-size: 0.72rem !important; color: #6c757d !important; }
+.enshit-push .enshit-pn-btns { display: flex !important; gap: 6px !important; }
+.enshit-push .enshit-pn-allow {
+  background: #2d6a4f !important; color: #fff !important; border: none !important;
+  padding: 5px 12px !important; border-radius: 5px !important;
+  font-size: 0.75rem !important; cursor: pointer !important; font-family: inherit !important;
+}
+.enshit-push .enshit-pn-block {
+  background: #e9ecef !important; color: #495057 !important; border: none !important;
+  padding: 5px 12px !important; border-radius: 5px !important;
+  font-size: 0.75rem !important; cursor: pointer !important; font-family: inherit !important;
+}
+
+/* ── Chat Widget ── */
+.enshit-chat {
+  display: none;
+  position: fixed !important; bottom: 90px !important; left: 20px !important;
+  width: 290px !important; background: #fff !important;
+  border-radius: 12px !important;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.2) !important;
+  z-index: 2147483637 !important; overflow: hidden !important;
+  font-family: -apple-system, sans-serif !important;
+}
+.enshit-chat .enshit-cw-header {
+  background: #2d6a4f !important; color: #fff !important;
+  padding: 12px 14px !important; display: flex !important;
+  justify-content: space-between !important; align-items: center !important;
+}
+.enshit-chat .enshit-cw-header span { font-weight: 700 !important; font-size: 0.85rem !important; color: #fff !important; }
+.enshit-chat .enshit-cw-header button {
+  background: none !important; border: none !important;
+  color: #fff !important; font-size: 1rem !important; cursor: pointer !important;
+}
+.enshit-chat .enshit-cw-msg {
+  background: #f1f3f5 !important; border-radius: 12px 12px 12px 4px !important;
+  padding: 10px 12px !important; font-size: 0.82rem !important;
+  margin-bottom: 10px !important; line-height: 1.4 !important; color: #1a1a2e !important;
+}
+.enshit-chat .enshit-cw-online {
+  display: flex !important; align-items: center !important;
+  gap: 6px !important; font-size: 0.72rem !important;
+  color: #6c757d !important; margin-bottom: 10px !important;
+}
+.enshit-chat .enshit-cw-dot {
+  width: 8px !important; height: 8px !important;
+  background: #2d6a4f !important; border-radius: 50% !important;
+  display: inline-block !important;
+}
+
+/* ── Urgency Banner ── */
+.enshit-urgency {
+  display: none;
+  position: fixed !important;
+  top: 52px !important; left: 50% !important;
+  transform: translateX(-50%) !important;
+  background: #fff3cd !important; border: 1px solid #ffc107 !important;
+  border-radius: 8px !important; padding: 10px 16px !important;
+  font-size: 0.82rem !important;
+  z-index: 2147483639 !important;
+  align-items: center !important; gap: 8px !important;
+  max-width: 500px !important; width: 90% !important;
+  font-family: -apple-system, sans-serif !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1) !important;
+}
+.enshit-urgency strong { color: #856404 !important; }
+
+/* ── Ad Blocker Wall ── */
+.enshit-adblock-wall {
+  display: none;
+  position: fixed !important; inset: 0 !important;
+  background: rgba(0,0,0,0.85) !important;
+  z-index: 2147483645 !important;
+  justify-content: center !important; align-items: center !important;
+  font-family: -apple-system, sans-serif !important;
+}
+.enshit-adblock-wall .enshit-ab-box {
+  background: #fff !important; border-radius: 12px !important;
+  padding: 36px !important; text-align: center !important;
+  max-width: 430px !important; width: 90% !important;
+}
+.enshit-adblock-wall h3 { font-size: 1.3rem !important; margin-bottom: 10px !important; color: #1a1a2e !important; }
+.enshit-adblock-wall p { font-size: 0.88rem !important; color: #6c757d !important; margin-bottom: 18px !important; line-height: 1.5 !important; }
+.enshit-adblock-wall .enshit-btn-disable {
+  background: #e63946 !important; color: #fff !important; border: none !important;
+  padding: 12px 32px !important; border-radius: 8px !important;
+  font-weight: 700 !important; font-size: 1rem !important;
+  cursor: pointer !important; margin-bottom: 8px !important;
+  font-family: inherit !important;
+}
+.enshit-adblock-wall .enshit-btn-sub-instead {
+  display: block !important; margin: 0 auto !important;
+  background: none !important; border: none !important;
+  font-size: 0.78rem !important; color: #e63946 !important;
+  cursor: pointer !important; text-decoration: underline !important;
+  font-family: inherit !important;
+}
+
+/* ── Toast ── */
+.enshit-toast {
+  position: fixed !important; bottom: 20px !important; left: 50% !important;
+  transform: translateX(-50%) translateY(80px) !important;
+  background: #1a1a2e !important; color: #fff !important;
+  padding: 10px 22px !important; border-radius: 8px !important;
+  font-size: 0.85rem !important; z-index: 2147483647 !important;
+  opacity: 0 !important; transition: all 0.3s ease !important;
+  pointer-events: none !important;
+  font-family: -apple-system, sans-serif !important;
+}
+.enshit-toast.enshit-show {
+  transform: translateX(-50%) translateY(0) !important;
+  opacity: 1 !important;
+}
+
+/* ── Chat Widget — Interactive ── */
+.enshit-chat .enshit-cw-body {
+  padding: 14px !important;
+  max-height: 280px !important;
+  overflow-y: auto !important;
+}
+.enshit-chat .enshit-cw-msg-user {
+  background: #e63946 !important; color: #fff !important;
+  border-radius: 12px 12px 4px 12px !important;
+  padding: 10px 12px !important; font-size: 0.82rem !important;
+  margin-bottom: 10px !important; line-height: 1.4 !important;
+  text-align: right !important; margin-left: 40px !important;
+}
+.enshit-chat .enshit-cw-input-row {
+  display: flex !important; border-top: 1px solid #dee2e6 !important;
+  padding: 8px !important; gap: 6px !important;
+}
+.enshit-chat .enshit-cw-input {
+  flex: 1 !important; border: 1px solid #dee2e6 !important;
+  border-radius: 6px !important; padding: 7px 10px !important;
+  font-size: 0.8rem !important; outline: none !important;
+  font-family: inherit !important;
+}
+.enshit-chat .enshit-cw-send {
+  background: #2d6a4f !important; color: #fff !important;
+  border: none !important; border-radius: 6px !important;
+  padding: 7px 12px !important; font-size: 0.8rem !important;
+  cursor: pointer !important; font-weight: 700 !important;
+  font-family: inherit !important;
+}
+.enshit-chat .enshit-cw-typing {
+  font-size: 0.72rem !important; color: #6c757d !important;
+  font-style: italic !important; margin-bottom: 10px !important;
+  padding-left: 4px !important;
+}
+
+/* ── Cookie Preferences Modal ── */
+.enshit-cookie-prefs {
+  display: none;
+  position: fixed !important; inset: 0 !important;
+  background: rgba(0,0,0,0.85) !important;
+  z-index: 2147483644 !important;
+  justify-content: center !important; align-items: center !important;
+  font-family: -apple-system, sans-serif !important;
+}
+.enshit-cookie-prefs .enshit-cp-box {
+  background: #fff !important; border-radius: 12px !important;
+  padding: 28px 32px !important; max-width: 700px !important;
+  width: 95% !important; max-height: 85vh !important;
+  display: flex !important; flex-direction: column !important;
+}
+.enshit-cookie-prefs .enshit-cp-box h3 {
+  font-size: 1.2rem !important; margin-bottom: 4px !important;
+  color: #1a1a2e !important;
+}
+.enshit-cookie-prefs .enshit-cp-box > p {
+  font-size: 0.78rem !important; color: #6c757d !important;
+  margin-bottom: 16px !important; line-height: 1.4 !important;
+}
+.enshit-cookie-prefs .enshit-cp-scroll {
+  flex: 1 !important; overflow-y: auto !important;
+  border: 1px solid #dee2e6 !important; border-radius: 8px !important;
+  margin-bottom: 16px !important;
+}
+.enshit-cookie-prefs .enshit-cp-row {
+  display: flex !important; align-items: center !important;
+  gap: 10px !important; padding: 10px 14px !important;
+  border-bottom: 1px solid #f1f3f5 !important;
+  font-size: 0.8rem !important; color: #1a1a2e !important;
+}
+.enshit-cookie-prefs .enshit-cp-row:nth-child(even) {
+  background: #f8f9fa !important;
+}
+.enshit-cookie-prefs .enshit-cp-row input[type="checkbox"] {
+  flex-shrink: 0 !important; width: 16px !important; height: 16px !important;
+  cursor: pointer !important;
+}
+.enshit-cookie-prefs .enshit-cp-row .enshit-cp-name {
+  flex: 1 !important; font-size: 0.78rem !important; line-height: 1.3 !important;
+}
+.enshit-cookie-prefs .enshit-cp-row select {
+  border: 1px solid #dee2e6 !important; border-radius: 4px !important;
+  padding: 4px 6px !important; font-size: 0.72rem !important;
+  cursor: pointer !important; font-family: inherit !important;
+  background: #fff !important; color: #1a1a2e !important;
+}
+.enshit-cookie-prefs .enshit-cp-btns {
+  display: flex !important; gap: 10px !important;
+  justify-content: flex-end !important; align-items: center !important;
+}
+.enshit-cookie-prefs .enshit-cp-save {
+  background: #dee2e6 !important; color: #adb5bd !important;
+  border: none !important; padding: 10px 24px !important;
+  border-radius: 6px !important; font-weight: 700 !important;
+  font-size: 0.9rem !important; cursor: not-allowed !important;
+  font-family: inherit !important;
+}
+.enshit-cookie-prefs .enshit-cp-note {
+  font-size: 0.62rem !important; color: #adb5bd !important;
+  font-style: italic !important;
+}
+.enshit-cookie-prefs .enshit-cp-cancel {
+  background: none !important; border: 1px solid #dee2e6 !important;
+  color: #6c757d !important; padding: 10px 20px !important;
+  border-radius: 6px !important; font-size: 0.85rem !important;
+  cursor: pointer !important; font-family: inherit !important;
+}

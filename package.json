@@ -1,0 +1,17 @@
+{
+  "name": "enshittification-index",
+  "version": "2.0.0",
+  "description": "The Enshittification Index — scoring websites across 6 categories of enshittification",
+  "main": "server.js",
+  "scripts": {
+    "start": "node --expose-gc --max-old-space-size=384 server.js",
+    "dev": "node server.js",
+    "set-password": "node scripts/set-password.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^11.0.0",
+    "jsonwebtoken": "^9.0.0",
+    "puppeteer-core": "^22.0.0"
+  }
+}

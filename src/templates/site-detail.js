@@ -1,0 +1,104 @@
+const { layout, escHtml } = require('./layout');
+
+function scoreColor(score) {
+  if (score == null) return '#999';
+  if (score <= 3) return '#2d9a2d';
+  if (score <= 6) return '#d4a017';
+  return '#d32f2f';
+}
+
+function scoreBar(label, score, maxScore = 10) {
+  const pct = score != null ? (score / maxScore) * 100 : 0;
+  const color = scoreColor(score);
+  return `<div class="score-bar-row">
+    <span class="score-bar-label">${escHtml(label)}</span>
+    <div class="score-bar-track">
+      <div class="score-bar-fill" style="width:${pct}%; background:${color}"></div>
+    </div>
+    <span class="score-bar-value" style="color:${color}">${score != null ? score.toFixed(1) : '—'}</span>
+  </div>`;
+}
+
+function render({ site, results }) {
+  const s = site;
+  const latestResult = results[0];
+  const screenshotUrl = latestResult?.screenshot_path
+    ? `/static/${latestResult.screenshot_path}` : null;
+
+  // Build history data for chart
+  const historyData = results.slice().reverse().map(r => ({
+    date: r.crawled_at,
+    score: r.score_overall,
+  }));
+
+  const body = `
+    <section class="site-header">
+      <h1>${escHtml(s.domain)}</h1>
+      <div class="overall-score" style="border-color:${scoreColor(s.score_overall)}">
+        <span class="overall-number" style="color:${scoreColor(s.score_overall)}">${s.score_overall != null ? s.score_overall.toFixed(1) : '—'}</span>
+        <span class="overall-label">/ 10</span>
+      </div>
+      <p class="site-meta">
+        First seen: ${escHtml(s.first_seen)} |
+        Last crawled: ${escHtml(s.last_crawled || 'Never')} |
+        Crawl count: ${s.crawl_count} |
+        Status: ${escHtml(s.status)}
+      </p>
+    </section>
+
+    <section class="card">
+      <h2>Score Breakdown</h2>
+      ${scoreBar('Tracking', s.score_tracking)}
+      ${scoreBar('Popups & Overlays', s.score_popups)}
+      ${scoreBar('Advertising', s.score_ads)}
+      ${scoreBar('Paywalls', s.score_paywalls)}
+      ${scoreBar('Dark Patterns', s.score_dark_patterns)}
+      ${scoreBar('Page Bloat', s.score_bloat)}
+    </section>
+
+    ${latestResult ? `<section class="card">
+      <h2>Latest Crawl Details</h2>
+      <div class="metrics-grid">
+        <div class="metric"><strong>Load Time</strong><span>${latestResult.page_load_time_ms ? (latestResult.page_load_time_ms / 1000).toFixed(1) + 's' : '—'}</span></div>
+        <div class="metric"><strong>Page Size</strong><span>${latestResult.page_size_bytes ? (latestResult.page_size_bytes / 1024).toFixed(0) + ' KB' : '—'}</span></div>
+        <div class="metric"><strong>Requests</strong><span>${latestResult.request_count || '—'}</span></div>
+        <div class="metric"><strong>JS Size</strong><span>${latestResult.js_size_bytes ? (latestResult.js_size_bytes / 1024).toFixed(0) + ' KB' : '—'}</span></div>
+        <div class="metric"><strong>DOM Nodes</strong><span>${latestResult.dom_node_count || '—'}</span></div>
+      </div>
+    </section>` : ''}
+
+    ${screenshotUrl ? `<section class="card">
+      <h2>Screenshot</h2>
+      <img class="screenshot" src="${escHtml(screenshotUrl)}" alt="Screenshot of ${escHtml(s.domain)}">
+    </section>` : ''}
+
+    ${results.length > 1 ? `<section class="card">
+      <h2>Score History</h2>
+      <canvas id="history-chart" data-history='${escHtml(JSON.stringify(historyData))}'></canvas>
+    </section>` : ''}
+
+    <section class="card">
+      <h2>Past Crawls</h2>
+      <table class="site-table">
+        <thead><tr><th>Date</th><th>Overall</th><th>Track</th><th>Popups</th><th>Ads</th><th>Paywall</th><th>Dark</th><th>Bloat</th></tr></thead>
+        <tbody>
+          ${results.map(r => `<tr>
+            <td>${escHtml(r.crawled_at)}</td>
+            <td style="color:${scoreColor(r.score_overall)}">${r.score_overall?.toFixed(1) || '—'}</td>
+            <td>${r.score_tracking?.toFixed(1) || '—'}</td>
+            <td>${r.score_popups?.toFixed(1) || '—'}</td>
+            <td>${r.score_ads?.toFixed(1) || '—'}</td>
+            <td>${r.score_paywalls?.toFixed(1) || '—'}</td>
+            <td>${r.score_dark_patterns?.toFixed(1) || '—'}</td>
+            <td>${r.score_bloat?.toFixed(1) || '—'}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+      ${results.length === 0 ? '<p class="empty">No crawl results yet.</p>' : ''}
+    </section>
+  `;
+
+  return layout(s.domain, body);
+}
+
+module.exports = { render };
