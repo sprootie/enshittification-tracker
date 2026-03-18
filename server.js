@@ -14,6 +14,7 @@ const searchTemplate = require('./src/templates/search');
 const adminLoginTemplate = require('./src/templates/admin-login');
 const adminStatusTemplate = require('./src/templates/admin-status');
 const adminSettingsTemplate = require('./src/templates/admin-settings');
+const adminSitesTemplate = require('./src/templates/admin-sites');
 
 const PORT = parseInt(process.env.PORT || '3000');
 
@@ -340,6 +341,42 @@ const server = http.createServer(async (req, res) => {
         const recentSubmissions = db.getRecentSubmissions(30);
         const topSubmitters = db.getTopSubmitters(15);
         return sendHtml(res, adminStatusTemplate.render({ queueStats, activeQueue, logs, memoryUsage, disallowedSites, recentSubmissions, topSubmitters }));
+      }
+
+      // ── ADMIN: Sites ──
+      if (pathname === '/admin/sites' && method === 'GET') {
+        const query = reqUrl.searchParams.get('q') || '';
+        const statusFilter = reqUrl.searchParams.get('status') || 'all';
+        const sort = reqUrl.searchParams.get('sort') || 'domain';
+        const dir = reqUrl.searchParams.get('dir') || 'asc';
+        const page = Math.max(1, parseInt(reqUrl.searchParams.get('page')) || 1);
+        const perPage = 25;
+        const result = db.adminGetAllSites(query, statusFilter, sort, dir, perPage, (page - 1) * perPage);
+        return sendHtml(res, adminSitesTemplate.render({
+          sites: result.sites, total: result.total,
+          query, status: statusFilter, sort, dir, page, perPage, message: null,
+        }));
+      }
+
+      // ── ADMIN: Rescan site (clears old scores, re-queues) ──
+      if (pathname.startsWith('/admin/sites/rescan/') && method === 'POST') {
+        const domain = decodeURIComponent(pathname.slice(20));
+        const site = db.getSiteByDomain(domain);
+        if (site) {
+          db.clearSiteScores(site.id);
+          db.updateSiteStatus(site.id, 'pending');
+          db.enqueue(site.id, 2);
+          db.log('info', `Admin rescanned ${domain}`);
+        }
+        return redirect(res, '/admin/sites');
+      }
+
+      // ── ADMIN: Delete site entirely ──
+      if (pathname.startsWith('/admin/sites/delete/') && method === 'POST') {
+        const domain = decodeURIComponent(pathname.slice(20));
+        db.deleteSite(domain);
+        db.log('info', `Admin deleted ${domain}`);
+        return redirect(res, '/admin/sites');
       }
 
       // ── ADMIN: Settings ──

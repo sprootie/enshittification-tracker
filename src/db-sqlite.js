@@ -359,6 +359,35 @@ module.exports = {
       total: stmts.countAllScoredSites.get().count,
     };
   },
+  adminGetAllSites(query, statusFilter, sortCol, sortDir, limit = 20, offset = 0) {
+    const validCols = [
+      'score_overall', 'score_tracking', 'score_popups', 'score_ads',
+      'score_paywalls', 'score_dark_patterns', 'score_bloat',
+      'domain', 'last_crawled', 'first_seen', 'status', 'crawl_count'
+    ];
+    const col = validCols.includes(sortCol) ? sortCol : 'domain';
+    const dir = sortDir === 'asc' ? 'ASC' : 'DESC';
+
+    let where = '1=1';
+    const params = [];
+    if (query) {
+      where += ' AND domain LIKE ?';
+      params.push(`%${query}%`);
+    }
+    if (statusFilter && statusFilter !== 'all') {
+      where += ' AND status = ?';
+      params.push(statusFilter);
+    }
+
+    const countStmt = db.prepare(`SELECT COUNT(*) as count FROM sites WHERE ${where}`);
+    const dataStmt = db.prepare(
+      `SELECT * FROM sites WHERE ${where} ORDER BY ${col} ${dir} LIMIT ? OFFSET ?`
+    );
+    return {
+      sites: dataStmt.all(...params, limit, offset),
+      total: countStmt.get(...params).count,
+    };
+  },
   getSitesNeedingRecrawl(intervalHours, limit = 10) {
     return stmts.getSitesNeedingRecrawl.all(String(intervalHours), limit);
   },

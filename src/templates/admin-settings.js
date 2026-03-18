@@ -6,6 +6,7 @@ function render({ settings, message }) {
       <h1>Admin Settings</h1>
       <div class="admin-nav">
         <a href="/admin/status">Status</a>
+        <a href="/admin/sites">Sites</a>
         <a href="/admin/settings" class="active">Settings</a>
         <a href="/admin/logout">Logout</a>
       </div>

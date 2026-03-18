@@ -9,6 +9,7 @@ function render({ queueStats, activeQueue, logs, memoryUsage, disallowedSites, r
       <h1>Admin Status</h1>
       <div class="admin-nav">
         <a href="/admin/status" class="active">Status</a>
+        <a href="/admin/sites">Sites</a>
         <a href="/admin/settings">Settings</a>
         <a href="/admin/logout">Logout</a>
       </div>
