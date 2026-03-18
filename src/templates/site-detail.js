@@ -56,6 +56,15 @@ function render({ site, results, isAdmin = false, safetyCheck = null, submission
         Crawl count: ${s.crawl_count} |
         Status: ${escHtml(s.status)}
       </p>
+      ${isAdmin ? `<div class="admin-actions">
+        <form method="POST" action="/admin/sites/rescan/${encodeURIComponent(s.domain)}" class="inline-action">
+          <button type="submit" class="btn-small">Rescan</button>
+        </form>
+        <form method="POST" action="/admin/sites/delete/${encodeURIComponent(s.domain)}" class="inline-action"
+              onsubmit="return confirm('Delete ${escHtml(s.domain)} and all its data?')">
+          <button type="submit" class="btn-small btn-danger">Delete</button>
+        </form>
+      </div>` : ''}
     </section>
 
     ${!isUnscorable ? `<section class="card">
