@@ -32,12 +32,14 @@ function isBlockedHost(hostname) {
 function validateAndNormalizeUrl(rawUrl) {
   if (!rawUrl) return null;
   let urlStr = rawUrl.trim();
-  if (!/^https?:\/\//i.test(urlStr)) urlStr = 'https://' + urlStr;
+  // Strip any protocol and always use https
+  urlStr = urlStr.replace(/^https?:\/\//i, '');
+  urlStr = 'https://' + urlStr;
   try {
     const parsed = new URL(urlStr);
-    if (!['http:', 'https:'].includes(parsed.protocol)) return null;
+    if (parsed.protocol !== 'https:') return null;
     if (isBlockedHost(parsed.hostname)) return null;
-    if (parsed.port && !['80', '443', ''].includes(parsed.port)) return null;
+    if (parsed.port && !['443', ''].includes(parsed.port)) return null;
     return parsed.toString();
   } catch {
     return null;
