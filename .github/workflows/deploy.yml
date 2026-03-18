@@ -33,7 +33,8 @@ jobs:
             mkdir -p data public/screenshots
             # Install pm2 globally if not present
             which pm2 || npm install -g pm2
-            # Delete and re-start to pick up ecosystem.config.js changes
+            # Load .env vars and start with pm2
             pm2 delete enshittindex 2>/dev/null || true
+            set -a; [ -f .env ] && source .env; set +a
             pm2 start ecosystem.config.js
             pm2 save
