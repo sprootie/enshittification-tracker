@@ -216,7 +216,7 @@ async function performCrawl(browserInstance, url, timeout) {
     await page.setRequestInterception(true);
     page.on('request', (req) => {
       const type = req.resourceType();
-      if (['image', 'font', 'media'].includes(type)) {
+      if (['font', 'media'].includes(type)) {
         req.abort();
       } else {
         req.continue();
@@ -235,7 +235,7 @@ async function performCrawl(browserInstance, url, timeout) {
       } catch {}
     });
 
-    await page.setViewport({ width: 1280, height: 800 });
+    await page.setViewport({ width: 1440, height: 900 });
 
     const startTime = Date.now();
     await page.goto(url, {
