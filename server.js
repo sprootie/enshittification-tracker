@@ -119,6 +119,27 @@ function parseBody(req) {
   });
 }
 
+function normalizeSearchQuery(query) {
+  let q = query.trim();
+  // If it looks like a URL, extract the domain
+  if (q.includes('://') || q.includes('www.') || q.includes('/')) {
+    // Add protocol if missing so URL parser works
+    let urlStr = q;
+    if (!/^https?:\/\//i.test(urlStr)) urlStr = 'https://' + urlStr;
+    try {
+      const parsed = new URL(urlStr);
+      q = parsed.hostname;
+    } catch {
+      // Not a valid URL, keep original
+    }
+  }
+  // Strip www. prefix
+  q = q.replace(/^www\./, '');
+  // Strip trailing dots/slashes
+  q = q.replace(/[./]+$/, '');
+  return q;
+}
+
 function formatBytes(bytes) {
   if (bytes < 1024) return bytes + ' B';
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
@@ -268,12 +289,26 @@ const server = http.createServer(async (req, res) => {
 
     // ── SEARCH ──
     if (pathname === '/search' && method === 'GET') {
-      const query = reqUrl.searchParams.get('q') || '';
+      let query = reqUrl.searchParams.get('q') || '';
       const sort = reqUrl.searchParams.get('sort') || 'score_overall';
       const dir = reqUrl.searchParams.get('dir') || 'desc';
       const page = Math.max(1, parseInt(reqUrl.searchParams.get('page')) || 1);
       const perPage = 20;
       const offset = (page - 1) * perPage;
+
+      // Normalize URL-like queries to domain names
+      // "https://www.google.com/path" → "google.com"
+      if (query) {
+        const normalized = normalizeSearchQuery(query);
+        // If we got an exact domain match, redirect straight to it
+        if (normalized !== query && page === 1) {
+          const exactSite = db.getSiteByDomain(normalized);
+          if (exactSite) {
+            return redirect(res, `/site/${encodeURIComponent(normalized)}`);
+          }
+        }
+        query = normalized;
+      }
 
       let result;
       if (query) {

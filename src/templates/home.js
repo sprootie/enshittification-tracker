@@ -34,6 +34,10 @@ function render({ topSites, worstSites, latestCrawled }) {
         <input type="url" name="url" placeholder="https://example.com" required autocomplete="url">
         <button type="submit">Analyze</button>
       </form>
+      <form class="search-inline" action="/search" method="GET">
+        <input type="text" name="q" placeholder="Search scanned sites..." autocomplete="off">
+        <button type="submit">Search</button>
+      </form>
     </section>
 
     <div class="dashboard-grid">
