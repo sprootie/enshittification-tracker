@@ -66,6 +66,9 @@ const BLOCK_PAGE_PATTERNS = [
   /does not have permission/i,
   /error:\s*forbidden/i,
   /403 forbidden/i,
+  /experiencing an access issue/i,
+  /your ip (address )?(has been|is) blocked/i,
+  /include your ip address/i,
   // Cloudflare
   /checking your browser/i,
   /just a moment/i,
