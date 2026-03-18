@@ -63,6 +63,9 @@ const BLOCK_PAGE_PATTERNS = [
   /are you a robot/i,
   /automated access/i,
   /suspicious activity/i,
+  /does not have permission/i,
+  /error:\s*forbidden/i,
+  /403 forbidden/i,
   // Cloudflare
   /checking your browser/i,
   /just a moment/i,
@@ -113,6 +116,12 @@ async function detectBlockPage(page) {
     // Very short page (likely not a real site)
     if (bodyLen < 50 && !html.includes('<canvas') && !html.includes('<video')) {
       return { blocked: true, reason: `Suspiciously short page (${bodyLen} chars)` };
+    }
+
+    // Very few DOM nodes — real sites have hundreds, block pages have < 50
+    const nodeCount = document.querySelectorAll('*').length;
+    if (nodeCount < 50 && bodyLen < 500) {
+      return { blocked: true, reason: `Minimal page (${nodeCount} nodes, ${bodyLen} chars)` };
     }
 
     // Check body text and title against block patterns
