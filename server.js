@@ -287,7 +287,8 @@ const server = http.createServer(async (req, res) => {
       const isAdmin = auth.isAuthenticated(req);
       const safetyCheck = isAdmin ? db.getLatestSafetyCheck(site.id) : null;
       const submissions = isAdmin ? db.getSubmissionsForSite(site.id, 20) : null;
-      return sendHtml(res, siteDetailTemplate.render({ site, results, isAdmin, safetyCheck, submissions }));
+      const lastQueueEntry = isAdmin ? db.getLatestQueueEntry(site.id) : null;
+      return sendHtml(res, siteDetailTemplate.render({ site, results, isAdmin, safetyCheck, submissions, lastQueueEntry }));
     }
 
     // ── SEARCH ──

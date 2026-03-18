@@ -212,6 +212,9 @@ const stmts = {
      WHERE cq.status IN ('waiting', 'processing')
      ORDER BY cq.priority DESC, cq.created_at ASC LIMIT 50`
   ),
+  getLatestQueueEntry: db.prepare(
+    `SELECT * FROM crawl_queue WHERE site_id = ? ORDER BY created_at DESC LIMIT 1`
+  ),
   isAlreadyQueued: db.prepare(
     `SELECT COUNT(*) as count FROM crawl_queue
      WHERE site_id = ? AND status IN ('waiting', 'processing')`
@@ -418,6 +421,9 @@ module.exports = {
   },
   getActiveQueue() {
     return stmts.getActiveQueue.all();
+  },
+  getLatestQueueEntry(siteId) {
+    return stmts.getLatestQueueEntry.get(siteId);
   },
 
   // Results

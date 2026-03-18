@@ -229,6 +229,7 @@ a:hover { text-decoration: underline; }
 .overall-number { font-size: 2.5rem; font-weight: 800; }
 .overall-label { font-size: 1rem; color: #666; }
 .site-meta { color: #666; font-size: 0.85rem; }
+.status-reason { color: #f44336; font-size: 0.85rem; margin-top: 8px; }
 
 /* ── Score Bars ──────────────────────────────────────────── */
 .score-bar-row {

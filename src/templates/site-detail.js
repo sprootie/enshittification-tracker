@@ -19,7 +19,7 @@ function scoreBar(label, score, maxScore = 10) {
   </div>`;
 }
 
-function render({ site, results, isAdmin = false, safetyCheck = null, submissions = null }) {
+function render({ site, results, isAdmin = false, safetyCheck = null, submissions = null, lastQueueEntry = null }) {
   const s = site;
   const latestResult = results[0];
   const screenshotUrl = latestResult?.screenshot_path
@@ -60,6 +60,12 @@ function render({ site, results, isAdmin = false, safetyCheck = null, submission
         Crawl count: ${s.crawl_count} |
         Status: ${escHtml(s.status)}
       </p>
+      ${isAdmin && lastQueueEntry && (lastQueueEntry.error || lastQueueEntry.status === 'failed') ? `
+        <p class="status-reason"><strong>Last crawl error:</strong> ${escHtml(lastQueueEntry.error || 'Unknown')}</p>
+      ` : ''}
+      ${isAdmin && s.status === 'blocked' ? `
+        <p class="status-reason"><strong>Reason:</strong> Site blocks automated access from datacenter, VPN, and Tor connections</p>
+      ` : ''}
       ${isAdmin ? `<div class="admin-actions">
         <form method="POST" action="/admin/sites/rescan/${encodeURIComponent(s.domain)}" class="inline-action">
           <button type="submit" class="btn-small">Rescan</button>
