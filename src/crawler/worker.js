@@ -10,12 +10,15 @@ const metricsDark = require('./metrics-dark');
 const metricsBloat = require('./metrics-bloat');
 
 const CHROMIUM_PATH = process.env.CHROMIUM_PATH || '/usr/bin/chromium-browser';
+const TOR_SOCKS_PROXY = process.env.TOR_PROXY || 'socks5://127.0.0.1:9050';
 const CRAWL_TIMEOUT = 30000;
+const TOR_CRAWL_TIMEOUT = 45000; // Tor is slower
 const POLL_INTERVAL = 10000;
-const RESTART_EVERY = 50; // restart browser every N crawls
+const RESTART_EVERY = 50;
 const MAX_RSS_MB = 700;
 
 let browser = null;
+let torBrowser = null;
 let crawlCount = 0;
 let running = false;
 let pollTimer = null;
@@ -40,30 +43,153 @@ const LAUNCH_ARGS = [
   '--disable-hang-monitor',
 ];
 
-async function launchBrowser() {
-  if (browser) {
-    try { await browser.close(); } catch {}
-  }
-  browser = await puppeteer.launch({
-    executablePath: CHROMIUM_PATH,
-    headless: 'new',
-    args: LAUNCH_ARGS,
-  });
-  browser.on('disconnected', () => {
-    browser = null;
-    db.log('warn', 'Browser disconnected unexpectedly');
-  });
-  crawlCount = 0;
-  db.log('info', 'Browser launched');
+// ── Block page detection ────────────────────────────────────────
+// These patterns indicate the site served a block/challenge page
+// instead of real content. The page loaded with HTTP 200 but
+// contains no actual site content.
+const BLOCK_PAGE_PATTERNS = [
+  // Reddit
+  /you['']ve been blocked by network security/i,
+  // Generic datacenter/bot blocks
+  /access denied/i,
+  /blocked by.*security/i,
+  /bot detection/i,
+  /please verify you['']?re? (a )?human/i,
+  /are you a robot/i,
+  /automated access/i,
+  /suspicious activity/i,
+  // Cloudflare
+  /checking your browser/i,
+  /just a moment/i,
+  /cf-challenge/i,
+  /enable javascript and cookies to continue/i,
+  /attention required/i,
+  // PerimeterX / HUMAN Security
+  /press & hold/i,
+  /before you continue/i,
+  // Akamai
+  /access to .* has been denied/i,
+  /reference #[0-9a-f.]+/i,
+  // Imperva/Incapsula
+  /incapsula incident/i,
+  // DataDome
+  /datadome/i,
+];
+
+// Patterns for pages that are essentially empty/error
+const EMPTY_PAGE_PATTERNS = [
+  /^unknown error$/i,
+  /^error$/i,
+  /^access denied$/i,
+  /^forbidden$/i,
+  /^not found$/i,
+];
+
+/**
+ * Check if the loaded page is a block/challenge page rather than real content.
+ * Returns { blocked: true, reason: string } or { blocked: false }
+ */
+async function detectBlockPage(page) {
+  const result = await page.evaluate((blockPatterns, emptyPatterns) => {
+    const bodyText = (document.body?.innerText || '').trim();
+    const bodyLen = bodyText.length;
+    const html = document.documentElement?.innerHTML || '';
+    const title = document.title || '';
+
+    // Very short page with error-like text
+    if (bodyLen < 200) {
+      for (const pattern of emptyPatterns) {
+        if (new RegExp(pattern, 'i').test(bodyText)) {
+          return { blocked: true, reason: `Empty page: "${bodyText.substring(0, 80)}"` };
+        }
+      }
+    }
+
+    // Very short page (likely not a real site)
+    if (bodyLen < 50 && !html.includes('<canvas') && !html.includes('<video')) {
+      return { blocked: true, reason: `Suspiciously short page (${bodyLen} chars)` };
+    }
+
+    // Check body text and title against block patterns
+    const checkText = (bodyText.substring(0, 5000) + ' ' + title).toLowerCase();
+    for (const pattern of blockPatterns) {
+      if (new RegExp(pattern, 'i').test(checkText)) {
+        return { blocked: true, reason: `Block pattern matched: ${pattern}` };
+      }
+    }
+
+    // Check for challenge iframes (Cloudflare turnstile, hCaptcha, etc.)
+    const iframes = document.querySelectorAll('iframe');
+    for (const iframe of iframes) {
+      const src = (iframe.src || '').toLowerCase();
+      if (src.includes('challenges.cloudflare.com') ||
+          src.includes('hcaptcha.com') ||
+          src.includes('recaptcha') ||
+          src.includes('captcha')) {
+        return { blocked: true, reason: `Challenge iframe: ${src.substring(0, 80)}` };
+      }
+    }
+
+    // Check for Cloudflare challenge meta tags
+    const metas = document.querySelectorAll('meta[http-equiv="refresh"]');
+    for (const meta of metas) {
+      const content = (meta.getAttribute('content') || '').toLowerCase();
+      if (content.includes('challenge')) {
+        return { blocked: true, reason: 'Challenge meta refresh' };
+      }
+    }
+
+    return { blocked: false };
+  },
+    BLOCK_PAGE_PATTERNS.map(r => r.source),
+    EMPTY_PAGE_PATTERNS.map(r => r.source)
+  );
+
+  return result;
 }
 
-async function ensureBrowser() {
+// ── Browser management ──────────────────────────────────────────
+async function launchBrowser(proxyArg) {
+  const args = [...LAUNCH_ARGS];
+  if (proxyArg) args.push(`--proxy-server=${proxyArg}`);
+
+  const b = await puppeteer.launch({
+    executablePath: CHROMIUM_PATH,
+    headless: 'new',
+    args,
+  });
+  return b;
+}
+
+async function ensureDirectBrowser() {
   if (!browser || !browser.isConnected()) {
-    await launchBrowser();
+    if (browser) { try { await browser.close(); } catch {} }
+    browser = await launchBrowser();
+    browser.on('disconnected', () => {
+      browser = null;
+      db.log('warn', 'Direct browser disconnected');
+    });
+    crawlCount = 0;
+    db.log('info', 'Direct browser launched');
   }
   if (crawlCount >= RESTART_EVERY) {
-    db.log('info', `Restarting browser after ${crawlCount} crawls`);
-    await launchBrowser();
+    db.log('info', `Restarting direct browser after ${crawlCount} crawls`);
+    try { await browser.close(); } catch {}
+    browser = await launchBrowser();
+    browser.on('disconnected', () => { browser = null; });
+    crawlCount = 0;
+  }
+}
+
+async function ensureTorBrowser() {
+  if (!torBrowser || !torBrowser.isConnected()) {
+    if (torBrowser) { try { await torBrowser.close(); } catch {} }
+    torBrowser = await launchBrowser(TOR_SOCKS_PROXY);
+    torBrowser.on('disconnected', () => {
+      torBrowser = null;
+      db.log('warn', 'Tor browser disconnected');
+    });
+    db.log('info', 'Tor browser launched');
   }
 }
 
@@ -77,27 +203,16 @@ function checkMemory() {
 }
 
 function forceGC() {
-  if (global.gc) {
-    global.gc();
-  }
+  if (global.gc) global.gc();
 }
 
-async function crawlSite(queueItem) {
-  const { id: queueId, site_id, domain, url } = queueItem;
-
-  db.startQueueItem(queueId);
-  db.updateSiteStatus(site_id, 'crawling');
-  db.log('info', `Crawling ${domain}`);
-
-  let page = null;
+// ── Core crawl logic (shared between direct and Tor) ────────────
+async function performCrawl(browserInstance, url, timeout) {
+  const page = await browserInstance.newPage();
   const requestUrls = [];
   const netStats = { totalBytes: 0, jsBytes: 0, requestCount: 0, loadTime: 0 };
 
   try {
-    await ensureBrowser();
-    page = await browser.newPage();
-
-    // Block images, fonts, media to save bandwidth
     await page.setRequestInterception(true);
     page.on('request', (req) => {
       const type = req.resourceType();
@@ -108,14 +223,11 @@ async function crawlSite(queueItem) {
       }
     });
 
-    // Track network requests
     page.on('response', async (response) => {
       try {
-        const url = response.url();
-        requestUrls.push(url);
+        requestUrls.push(response.url());
         netStats.requestCount++;
-        const headers = response.headers();
-        const contentLength = parseInt(headers['content-length'] || '0');
+        const contentLength = parseInt(response.headers()['content-length'] || '0');
         netStats.totalBytes += contentLength;
         if (response.request().resourceType() === 'script') {
           netStats.jsBytes += contentLength;
@@ -126,19 +238,79 @@ async function crawlSite(queueItem) {
     await page.setViewport({ width: 1280, height: 800 });
 
     const startTime = Date.now();
-
-    // Navigate with timeout
     await page.goto(url, {
       waitUntil: 'networkidle2',
-      timeout: CRAWL_TIMEOUT - 5000, // leave room for metrics
+      timeout: timeout - 5000,
     });
-
     netStats.loadTime = Date.now() - startTime;
 
-    // Wait a bit for lazy-loaded content
+    // Wait for lazy content
     await page.evaluate(() => new Promise(r => setTimeout(r, 2000)));
 
-    // Run all 6 metric collectors
+    return { page, requestUrls, netStats };
+  } catch (err) {
+    try { await page.close(); } catch {}
+    throw err;
+  }
+}
+
+// ── Main crawl function ─────────────────────────────────────────
+async function crawlSite(queueItem) {
+  const { id: queueId, site_id, domain, url } = queueItem;
+
+  db.startQueueItem(queueId);
+  db.updateSiteStatus(site_id, 'crawling');
+  db.log('info', `Crawling ${domain}`);
+
+  let page = null;
+  let requestUrls = [];
+  let netStats = {};
+  let usedTor = false;
+
+  try {
+    // ── Attempt 1: Direct connection ──
+    await ensureDirectBrowser();
+    let crawlResult;
+    try {
+      crawlResult = await performCrawl(browser, url, CRAWL_TIMEOUT);
+    } catch (directErr) {
+      // Direct navigation failed entirely — try Tor
+      db.log('warn', `Direct crawl failed for ${domain}: ${directErr.message}, retrying via Tor`);
+      await ensureTorBrowser();
+      crawlResult = await performCrawl(torBrowser, url, TOR_CRAWL_TIMEOUT);
+      usedTor = true;
+    }
+
+    page = crawlResult.page;
+    requestUrls = crawlResult.requestUrls;
+    netStats = crawlResult.netStats;
+
+    // ── Check for block page (direct attempt) ──
+    if (!usedTor) {
+      const blockCheck = await detectBlockPage(page);
+      if (blockCheck.blocked) {
+        db.log('warn', `Block page detected for ${domain}: ${blockCheck.reason} — retrying via Tor`);
+        try { await page.close(); } catch {}
+        page = null;
+
+        // Retry via Tor
+        await ensureTorBrowser();
+        crawlResult = await performCrawl(torBrowser, url, TOR_CRAWL_TIMEOUT);
+        page = crawlResult.page;
+        requestUrls = crawlResult.requestUrls;
+        netStats = crawlResult.netStats;
+        usedTor = true;
+
+        // Check if Tor attempt is also blocked
+        const torBlockCheck = await detectBlockPage(page);
+        if (torBlockCheck.blocked) {
+          db.log('warn', `Tor also blocked for ${domain}: ${torBlockCheck.reason}`);
+          // Still proceed — score what we got, but log it
+        }
+      }
+    }
+
+    // ── Run metrics ──
     const [tracking, popups, ads, paywalls, dark, bloat] = await Promise.all([
       metricsTracking.evaluate(page, requestUrls),
       metricsPopups.evaluate(page, requestUrls),
@@ -166,7 +338,6 @@ async function crawlSite(queueItem) {
       await page.screenshot({
         path: path.join(__dirname, '..', '..', 'public', screenshotPath),
         type: 'png',
-        quality: undefined,
         fullPage: false,
       });
     } catch (e) {
@@ -200,7 +371,8 @@ async function crawlSite(queueItem) {
     });
 
     db.completeQueueItem(queueId);
-    db.log('info', `Completed ${domain}: overall=${scores.overall}`);
+    const via = usedTor ? ' (via Tor)' : '';
+    db.log('info', `Completed ${domain}: overall=${scores.overall}${via}`);
     crawlCount++;
 
   } catch (err) {
@@ -219,8 +391,10 @@ async function pollQueue() {
   if (!running) return;
 
   if (!checkMemory()) {
-    // Memory too high, try restarting browser
-    try { await launchBrowser(); } catch {}
+    try {
+      if (browser) { await browser.close(); browser = null; }
+      if (torBrowser) { await torBrowser.close(); torBrowser = null; }
+    } catch {}
     forceGC();
     return;
   }
@@ -245,21 +419,18 @@ function start() {
   running = true;
   db.log('info', 'Crawler worker started');
 
-  // Poll queue
   pollTimer = setInterval(async () => {
     try { await pollQueue(); } catch (err) {
       db.log('error', `Poll error: ${err.message}`);
     }
   }, POLL_INTERVAL);
 
-  // Recrawl scheduler - every hour
   recrawlTimer = setInterval(() => {
     try { scheduleRecrawls(); } catch (err) {
       db.log('error', `Recrawl scheduler error: ${err.message}`);
     }
   }, 60 * 60 * 1000);
 
-  // Initial poll after 5s
   setTimeout(() => pollQueue().catch(() => {}), 5000);
 }
 
@@ -268,6 +439,7 @@ function stop() {
   if (pollTimer) clearInterval(pollTimer);
   if (recrawlTimer) clearInterval(recrawlTimer);
   if (browser) browser.close().catch(() => {});
+  if (torBrowser) torBrowser.close().catch(() => {});
   db.log('info', 'Crawler worker stopped');
 }
 
